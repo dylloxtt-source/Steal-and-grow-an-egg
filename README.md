@@ -136,6 +136,7 @@ Medic (лечит соседей), Shade (скрытный — виден тол
 
 Баланс правится в `src/shared/Config/*.luau`. Документация:
 [архитектура](docs/ARCHITECTURE.md) · [баланс](docs/BALANCE.md) · [тестирование](docs/TESTING.md).
+Тумбнейл, иконка и пост для Discord — в [docs/marketing](docs/marketing/discord.md).
 
 ## Проверки (для разработчика, нужен [Lune](https://lune-org.github.io/docs))
 
