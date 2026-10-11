@@ -54,7 +54,7 @@ function DataService:Init(_registry)
 	if ok then
 		store = result
 	else
-		warn("[DataService] DataStore недоступен, режим памяти:", result)
+		warn("[DataService] DataStore unavailable, memory mode:", result)
 		DataService.MemoryMode = true
 	end
 end
@@ -112,11 +112,11 @@ local function loadProfile(player: Player): (boolean, any?)
 		end
 		if not ok then
 			if RunService:IsStudio() and isApiAccessError(result) then
-				warn("[DataService] Studio: включите Game Settings > Security > Enable Studio Access to API Services. Прогресс НЕ сохраняется.")
+				warn("[DataService] Studio: enable Game Settings > Security > Enable Studio Access to API Services. Progress is NOT saved.")
 				DataService.MemoryMode = true
 				return true, Profile.Default()
 			end
-			warn(string.format("[DataService] Ошибка загрузки %s (попытка %d): %s", player.Name, attempt, tostring(result)))
+			warn(string.format("[DataService] Load error %s (attempt %d): %s", player.Name, attempt, tostring(result)))
 		end
 		if not player.Parent then
 			return false, nil
@@ -154,11 +154,11 @@ local function saveSession(session: any, release: boolean): boolean
 		if ok then
 			success = written
 			if locked then
-				warn(string.format("[DataService] Профиль %d занят другим сервером — сохранение пропущено", session.UserId))
+				warn(string.format("[DataService] Profile %d is locked by another server — save skipped", session.UserId))
 			end
 			break
 		end
-		warn(string.format("[DataService] Ошибка сохранения %d (попытка %d): %s", session.UserId, attempt, tostring(err)))
+		warn(string.format("[DataService] Save error %d (attempt %d): %s", session.UserId, attempt, tostring(err)))
 		task.wait(attempt)
 	end
 	session.Saving = false
@@ -194,7 +194,7 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	if not ok or not profile then
-		player:Kick("Не удалось загрузить прогресс. Пожалуйста, перезайдите через минуту.")
+		player:Kick("Could not load your progress. Please rejoin in a minute.")
 		DataService.Sessions[player] = nil
 		return
 	end
@@ -209,7 +209,7 @@ local function onPlayerAdded(player: Player)
 	player:SetAttribute("Loaded", true)
 	DataService:SendProfile(player)
 	if DataService.MemoryMode then
-		DataService:Notify(player, "Тестовый режим: прогресс не сохраняется (DataStore недоступен)", "warn")
+		DataService:Notify(player, "Test mode: progress is not saved (DataStore unavailable)", "warn")
 	end
 end
 

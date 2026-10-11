@@ -22,7 +22,10 @@ require(Controllers.PlacementController).Init()
 require(Controllers.LightingController).Init()
 require(Controllers.LobbyController).Init(screen)
 require(Controllers.HUDController).Init(screen)
+require(Controllers.ShopController).Init(screen)
+require(Controllers.SettingsController).Init(screen)
 require(Controllers.ResultsController).Init(screen)
+require(script.UI.Kit).InitTooltip(screen)
 
 -- Профиль и (если игрок переподключился в матч) снимок матча
 task.spawn(function()

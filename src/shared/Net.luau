@@ -36,6 +36,10 @@ Net.Actions = {
 	VoteSkip = 2,
 	ReturnToLobby = 1,
 	RequestState = 2,
+	BuyTower = 3,
+	EquipTower = 6,
+	UnequipTower = 6,
+	SetSetting = 6,
 }
 
 local folder: Folder? = nil

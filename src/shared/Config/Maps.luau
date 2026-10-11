@@ -47,7 +47,7 @@ end
 
 local list: { Map } = {
 	{
-		Id = "greenfield", Name = "Greenfield", Description = "Зелёная долина с ручьём и мостом. Лучшая карта для начала.",
+		Id = "greenfield", Name = "Greenfield", Description = "A green valley with a stream and a bridge. The best map to start on.",
 		Difficulty = 1.0, BaseHealth = 120, Bounds = Vector2.new(84, 62), PathWidth = 8, Seed = 101, Theme = "grass",
 		Waypoints = { v(-82, -38), v(-40, -38), v(-40, 22), v(0, 22), v(0, -26), v(40, -26), v(40, 34), v(76, 34) },
 		NoBuild = { { Min = Vector2.new(15, -62), Max = Vector2.new(25, 62) } }, -- ручей
@@ -67,7 +67,7 @@ local list: { Map } = {
 		Accent = c(106, 176, 76),
 	},
 	{
-		Id = "desert", Name = "Desert Canyon", Description = "Каньон с красными скалами, кактусами и каменными арками.",
+		Id = "desert", Name = "Desert Canyon", Description = "A canyon of red rocks, cacti and stone arches.",
 		Difficulty = 1.15, BaseHealth = 110, Bounds = Vector2.new(84, 62), PathWidth = 8, Seed = 202, Theme = "desert",
 		Waypoints = { v(-82, 46), v(-48, 46), v(-48, -12), v(-14, -12), v(-14, 40), v(24, 40), v(24, -44), v(58, -44), v(58, 10), v(78, 10) },
 		NoBuild = {},
@@ -87,7 +87,7 @@ local list: { Map } = {
 		Accent = c(220, 110, 70),
 	},
 	{
-		Id = "snow", Name = "Snow Valley", Description = "Длинная снежная спираль к ледяной крепости. Замёрзший ручей.",
+		Id = "snow", Name = "Snow Valley", Description = "A long snowy spiral to an ice fortress, past a frozen stream.",
 		Difficulty = 1.3, BaseHealth = 100, Bounds = Vector2.new(84, 62), PathWidth = 8, Seed = 303, Theme = "snow",
 		Waypoints = { v(-82, -48), v(56, -48), v(56, 40), v(-52, 40), v(-52, -14), v(28, -14), v(28, 14), v(-8, 14) },
 		NoBuild = { { Min = Vector2.new(68, -62), Max = Vector2.new(84, 62) } }, -- замёрзший ручей у края
@@ -106,7 +106,7 @@ local list: { Map } = {
 		Accent = c(120, 190, 255),
 	},
 	{
-		Id = "ruins", Name = "Forgotten Ruins", Description = "Древние колонны и разрушенные стены в заросшем сумраке.",
+		Id = "ruins", Name = "Forgotten Ruins", Description = "Ancient pillars and crumbling walls in an overgrown dusk.",
 		Difficulty = 1.35, BaseHealth = 100, Bounds = Vector2.new(84, 64), PathWidth = 8, Seed = 404, Theme = "ruins",
 		Waypoints = { v(0, -62), v(0, -36), v(-58, -36), v(-58, 0), v(54, 0), v(54, 34), v(-22, 34), v(-22, 58) },
 		NoBuild = {},
@@ -126,7 +126,7 @@ local list: { Map } = {
 		Accent = c(255, 170, 70),
 	},
 	{
-		Id = "neon", Name = "Neon City", Description = "Ночной город: дороги, неоновые вывески и контейнеры. Самая сложная карта.",
+		Id = "neon", Name = "Neon City", Description = "A city at night: roads, neon signs and shipping containers. The hardest map.",
 		Difficulty = 1.5, BaseHealth = 100, Bounds = Vector2.new(84, 62), PathWidth = 8, Seed = 505, Theme = "neon",
 		Waypoints = { v(-82, -30), v(-30, -30), v(-30, 30), v(18, 30), v(18, -42), v(58, -42), v(58, 26), v(78, 26) },
 		NoBuild = {},

@@ -380,8 +380,58 @@ check("профиль по умолчанию", default.gems == 0 and default.le
 for _, junk in { nil, 5, "x", { gems = "много", level = -3, stats = 7, bestWave = { fake_map = 3, greenfield = "x" } } } do
 	local fixed = Profile.Reconcile(junk)
 	check("Reconcile чинит повреждённые данные: " .. typeof(junk), fixed.gems == 0 and fixed.level >= 1 and type(fixed.stats) == "table"
-		and fixed.bestWave.fake_map == nil and fixed.unlocked.wolverine == true)
+		and fixed.bestWave.fake_map == nil and fixed.owned.swordsman == true and fixed.loadout[1] == "swordsman"
+		and type(fixed.settings) == "table" and fixed.settings.autoSkip == false)
 end
+check("новый игрок владеет только мечником", (function()
+	local count = 0
+	for _ in default.owned do
+		count += 1
+	end
+	return count == 1 and default.owned.swordsman == true and #default.loadout == 1 and default.loadout[1] == "swordsman"
+end)())
+check("стартовая башня бесплатна, остальные стоят гемов", (function()
+	for _, def in Towers.List do
+		if (def.Id == Towers.Starter) ~= (def.Price == 0) or not def.Rarity then
+			return false
+		end
+	end
+	return true
+end)())
+local migrated = Profile.Reconcile({ version = 1, gems = 500, level = 4, xp = 10, unlocked = { archer = true, wolverine = true },
+	stats = { matches = 3, wins = 1, losses = 2, kills = 50, wavesCleared = 20 }, bestWave = { greenfield = 12 } })
+check("перенос профиля v1: прогресс сохранён, башни — только стартовая", migrated.gems == 500 and migrated.level == 4
+	and migrated.stats.wins == 1 and migrated.bestWave.greenfield == 12 and migrated.owned.wolverine == nil
+	and migrated.unlocked == nil and migrated.version == 2)
+local bad = Profile.Reconcile({ version = 2, owned = { archer = true, dragon = true, sniper = "yes" }, loadout = { "sniper", "archer", "archer", "dragon", 5 },
+	settings = { autoSkip = "on", hack = true } })
+check("Reconcile: набор только из купленных, без дублей", #bad.loadout == 1 and bad.loadout[1] == "archer" and bad.owned.dragon == nil
+	and bad.owned.sniper == nil and bad.owned.swordsman == true)
+check("Reconcile: неизвестные/неверные настройки убраны", bad.settings.hack == nil and bad.settings.autoSkip == false)
+
+local shop = Profile.Default()
+local okBuy, why = Profile.Buy(shop, "archer")
+check("нельзя купить без гемов", not okBuy and why ~= nil and shop.owned.archer == nil, why)
+shop.gems = Towers.ById.archer.Price + 10
+okBuy = Profile.Buy(shop, "archer")
+check("покупка списывает гемы и добавляет в набор", okBuy and shop.gems == 10 and shop.owned.archer and table.find(shop.loadout, "archer") ~= nil)
+check("повторная покупка невозможна", not (Profile.Buy(shop, "archer")) and shop.gems == 10)
+check("неизвестную башню купить нельзя", not (Profile.Buy(shop, "dragon")))
+check("нельзя взять некупленную башню", not (Profile.Equip(shop, "wolverine")))
+check("снять башню из набора", (Profile.Unequip(shop, "archer")) and table.find(shop.loadout, "archer") == nil)
+check("последнюю башню снять нельзя", not (Profile.Unequip(shop, "swordsman")) and #shop.loadout == 1)
+check("взять башню в слот", (Profile.Equip(shop, "archer", 1)) and shop.loadout[1] == "archer")
+for _, def in Towers.List do
+	shop.owned[def.Id] = true
+end
+shop.loadout = { "swordsman" }
+for _, id in { "archer", "pistol", "sniper", "toxic" } do
+	Profile.Equip(shop, id)
+end
+check("набор ограничен " .. Towers.LoadoutSize .. " башнями", #shop.loadout == Towers.LoadoutSize and not (Profile.Equip(shop, "wolverine")))
+check("замена башни в занятом слоте", (Profile.Equip(shop, "wolverine", 2)) and shop.loadout[2] == "wolverine"
+	and #shop.loadout == Towers.LoadoutSize and table.find(shop.loadout, "archer") == nil)
+check("неверный слот отклонён", not (Profile.Equip(shop, "archer", 9)) and not (Profile.Equip(shop, "archer", 1.5)))
 local p = Profile.Default()
 local gained = Profile.AddXp(p, Economy.Xp.PerLevel(1) + 5)
 check("опыт повышает уровень", gained == 1 and p.level == 2 and p.xp == 5)
@@ -517,6 +567,40 @@ local function scan(dir)
 end
 scan("src")
 check("в коде нет выдуманных asset/animation ID", #idHits == 0, table.concat(idHits, ","))
+
+-- Игра на английском: в строках кода (не в комментариях) нет кириллицы
+local cyrillic = {}
+local function scanText(dir)
+	for _, name in fs.readDir(dir) do
+		local full = dir .. "/" .. name
+		if fs.isDir(full) then
+			scanText(full)
+		elseif string.match(name, "%.luau$") then
+			local inBlock = false
+			local lineNo = 0
+			for line in string.gmatch(fs.readFile(full) .. "\n", "(.-)\n") do
+				lineNo += 1
+				if inBlock then
+					if string.find(line, "]]", 1, true) then
+						inBlock = false
+					end
+				elseif string.match(line, "^%s*%-%-%[%[") then
+					inBlock = not string.find(line, "]]", 1, true)
+				else
+					local code = string.match(line, "^(.-)%-%-") or line
+					for text in string.gmatch(code, '"([^"]*)"') do
+						-- кириллица в UTF-8: первый байт 0xD0 или 0xD1
+						if string.find(text, "[\208\209][\128-\191]") then
+							table.insert(cyrillic, full .. ":" .. lineNo)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+scanText("src")
+check("весь текст игры на английском", #cyrillic == 0, table.concat(cyrillic, ", "))
 
 ------------------------------------------------------------------------
 section("Сетевой контракт")

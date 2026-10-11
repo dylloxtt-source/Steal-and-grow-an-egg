@@ -5,7 +5,7 @@
 
 local Services = script:WaitForChild("Services")
 
-local ORDER = { "DataService", "NetService", "LobbyService", "MatchService", "ElevatorService" }
+local ORDER = { "DataService", "NetService", "LobbyService", "ShopService", "MatchService", "ElevatorService" }
 
 local registry = {}
 for _, name in ORDER do
@@ -20,7 +20,7 @@ local function start(name: string)
 		registry[name]:Start()
 	end)
 	if not ok then
-		warn(string.format("[Server] %s не запустился: %s", name, tostring(err)))
+		warn(string.format("[Server] %s failed to start: %s", name, tostring(err)))
 	end
 end
 
@@ -31,4 +31,4 @@ for _, name in ORDER do
 end
 start("DataService")
 
-print("[Server] R6 Tower Defense запущен")
+print("[Server] R6 Tower Defense started")

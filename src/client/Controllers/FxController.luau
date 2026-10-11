@@ -10,10 +10,12 @@ local Effects = require(script.Parent.Effects)
 local EnemyRenderer = require(script.Parent.EnemyRenderer)
 local TowerAnimator = require(script.Parent.TowerAnimator)
 local Sound = require(script.Parent.Sound)
+local SettingsController = require(script.Parent.SettingsController)
 
 local FxController = {}
 
-FxController.Banner = Instance.new("BindableEvent") -- (text, color) для HUD
+FxController.Banner = Instance.new("BindableEvent") -- (text, color, small, subtitle) для HUD
+FxController.Reward = Instance.new("BindableEvent") -- (amount) — для анимации денег в HUD
 
 local SHOT = {
 	pistol = { Color = Color3.fromRGB(255, 220, 120), Width = 0.12, Sound = "Pistol" },
@@ -101,6 +103,12 @@ local function handle(entry: any)
 		local position = EnemyRenderer.Position(id, entry.e)
 		if position then
 			Effects.Puff(position, if entry.boss then Color3.fromRGB(255, 80, 80) else Color3.fromRGB(230, 230, 230), if entry.boss then 14 else 6)
+			if entry.r and SettingsController.Get("popups") then
+				Effects.Popup(position + Vector3.new(0, 1.5, 0), "+$" .. entry.r, Color3.fromRGB(255, 214, 80), if entry.boss then 34 else 22)
+			end
+		end
+		if entry.r then
+			FxController.Reward:Fire(entry.r)
 		end
 		Sound.Play("EnemyDeath", 0.3)
 	elseif kind == "place" or kind == "upgrade" then
@@ -116,13 +124,9 @@ local function handle(entry: any)
 		FxController.Banner:Fire("-" .. tostring(entry.n) .. " ❤", Color3.fromRGB(255, 90, 100), true)
 	elseif kind == "wave" then
 		Sound.Play("WaveStart", 0.5)
-		local text = "ВОЛНА " .. entry.n
-		if entry.boss then
-			text ..= "  •  БОСС"
-		elseif entry.elite then
-			text ..= "  •  ЭЛИТА"
-		end
-		FxController.Banner:Fire(text, if entry.boss then Color3.fromRGB(255, 90, 100) elseif entry.elite then Color3.fromRGB(255, 170, 70) else Color3.fromRGB(76, 201, 240), false)
+		local subtitle = if entry.boss then "☠ BOSS WAVE" elseif entry.elite then "⚠ ELITE WAVE" else nil
+		FxController.Banner:Fire("WAVE " .. entry.n, if entry.boss then Color3.fromRGB(255, 80, 96) elseif entry.elite then Color3.fromRGB(255, 160, 60) else Color3.fromRGB(255, 255, 255),
+			false, subtitle)
 	elseif kind == "boss" then
 		Sound.Play("BossSpawn", 0.8)
 	elseif kind == "victory" then

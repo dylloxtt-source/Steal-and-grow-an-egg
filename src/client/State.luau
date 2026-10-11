@@ -102,7 +102,7 @@ function State.Action(name: string, payload: any?): (boolean, any?)
 		return action:InvokeServer(name, payload)
 	end)
 	if not ok or type(result) ~= "table" then
-		State.Notify:Fire("Нет связи с сервером", "error")
+		State.Notify:Fire("Connection problem — try again", "error")
 		return false, nil
 	end
 	if not result.ok and result.message then

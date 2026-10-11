@@ -126,6 +126,11 @@ local function dump(instance)
 			node.trunc = enumName(get(instance, "TextTruncate")) == "AtEnd"
 			local face = get(instance, "FontFace")
 			node.fw = if face then WEIGHTS[face.Weight.Name] or 600 else 600
+			node.ff = if face and string.find(face.Family, "Fredoka", 1, true) then "display" else "body"
+			node.rich = get(instance, "RichText")
+		end
+		if class == "ImageLabel" then
+			node.image = true
 		end
 		if class == "ViewportFrame" then
 			local model = instance:FindFirstChildOfClass("Model")
@@ -212,9 +217,31 @@ end
 -- Сцены
 ------------------------------------------------------------------------
 
+local ShopController = client.require(C.ShopController)
+local SettingsController = client.require(C.SettingsController)
+
+-- Профиль «середины прогресса»: куплено несколько башен
+profile.owned.archer = true
+profile.owned.toxic = true
+profile.owned.sniper = true
+profile.loadout = { "swordsman", "archer", "toxic", "sniper" }
+profile.gems = 1340
+DataService:SendProfile(player)
+
 tick(0.5)
-Notifications.Show("Добро пожаловать! Зайди в лифт, чтобы начать матч", "info")
+Notifications.Show("Welcome! Step into an elevator to start a match", "info")
 scene("lobby")
+scene("lobby", 844, 390)
+
+ShopController.Open()
+ShopController.Select("lumberjack")
+scene("lobby_shop")
+scene("lobby_shop", 844, 390)
+ShopController.Close()
+
+SettingsController.Open()
+scene("lobby_settings")
+SettingsController.Close()
 
 Engine.MoveTo(player, LobbyService.Booths[1].Center + Vector3.new(0, 3, 0))
 Engine.MoveTo(friend, LobbyService.Booths[1].Center + Vector3.new(1, 3, 0))
@@ -224,24 +251,21 @@ Engine.InvokeAs(friend, "ElevatorReady", { ready = true })
 scene("lobby_elevator")
 scene("lobby_elevator", 844, 390)
 
-LobbyController.ToggleCollection()
-scene("lobby_collection")
-LobbyController.ToggleCollection()
-
 -- Матч на двоих
 Engine.MoveTo(player, Vector3.new(0, 3, 40))
 Engine.MoveTo(friend, Vector3.new(3, 3, 40))
 tick(0.5)
 local match = MatchService:Create({ player, friend }, "greenfield")
+match.PlayerState[friend.UserId].Loadout = nil
 tick(0.5)
--- Несколько башен игроков
 local layout = MapLayout.Get("greenfield")
 local placed = 0
 for x = -60, 60, 7 do
 	for z = -50, 50, 7 do
 		if placed < 6 and Placement.Check("greenfield", x, z, match.Towers:Footprints()) and layout.Path:DistanceTo(Vector3.new(x, 0, z)) < 9 then
-			local towerIds = { "archer", "swordsman", "toxic", "pistol", "sniper", "lumberjack" }
+			local towerIds = { "archer", "swordsman", "pistol", "toxic", "sniper", "lumberjack" }
 			match.PlayerState[player.UserId].Cash = 5000
+			match.PlayerState[friend.UserId].Cash = 5000
 			match.Towers:Place(if placed % 3 == 2 then friend else player, towerIds[placed + 1], x, z)
 			placed += 1
 		end
@@ -249,19 +273,15 @@ for x = -60, 60, 7 do
 end
 match.PlayerState[player.UserId].Cash = 1250
 match.PlayerState[friend.UserId].Cash = 640
+Engine.InvokeAs(friend, "SetSetting", { key = "autoSkip", value = true })
 scene("match_prep")
 
--- Волна с боссом и выбранная башня
 match.Waves:StartWave(10)
 tick(30)
-local boss = nil
 for _, e in match.Enemies.Alive do
 	if e.Def.Boss then
-		boss = e
+		e.Health = math.floor(e.MaxHealth * 0.62)
 	end
-end
-if boss then
-	boss.Health = math.floor(boss.MaxHealth * 0.62)
 end
 match.BaseHealth = 84
 match:MarkDirty()
@@ -277,17 +297,15 @@ scene("match_tower")
 scene("match_tower", 844, 390)
 TowerController.Select(nil)
 
--- Размещение с причиной запрета (телефон: кнопки «Поставить/Отмена»)
 setScreen(844, 390)
 local onRoad = layout.Path:At(60)
 local world = match.Origin + onRoad
 camera.CFrame = roblox.CFrame.new(world + Vector3.new(0, 50, 25)) * roblox.CFrame.Angles(-math.atan2(50, 25), 0, 0)
 Engine.MouseLocation = Vector2.new(422, 195)
-HUDController.Choose("minigunner")
+HUDController.Choose("toxic")
 scene("match_place", 844, 390)
 PlacementController.Stop()
 
--- Итоги
 match.Waves.Queue = {}
 for _, e in table.clone(match.Enemies.Alive) do
 	match.Enemies:Kill(e)

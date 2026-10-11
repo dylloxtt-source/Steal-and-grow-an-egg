@@ -9,15 +9,18 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const dir = process.argv[2];
-const fontCss = fs.existsSync(path.join(dir, 'montserrat.css')) ? fs.readFileSync(path.join(dir, 'montserrat.css'), 'utf8') : '';
+const fontCss = (fs.existsSync(path.join(dir, 'montserrat.css')) ? fs.readFileSync(path.join(dir, 'montserrat.css'), 'utf8') : '')
+  + (fs.existsSync(path.join(dir, 'fredoka.ttf')) ? '@font-face{font-family:"Fredoka One";src:url(data:font/ttf;base64,' + fs.readFileSync(path.join(dir, 'fredoka.ttf')).toString('base64') + ');}' : '');
 
 const renderer = `
 const arr = x => Array.isArray(x) ? x : (x ? Object.values(x) : []);
 const rgb = (c, a = 1) => c ? 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')' : 'transparent';
 const mul = (c, g) => [Math.round(c[0] * g[0] / 255), Math.round(c[1] * g[1] / 255), Math.round(c[2] * g[2] / 255)];
 const FONT = '"Montserrat", "Noto Color Emoji", sans-serif';
+const DISPLAY = '"Fredoka One", "Noto Color Emoji", sans-serif';
+const plain = t => (t || '').replace(/<[^>]+>/g, '');
 const canvas = document.createElement('canvas').getContext('2d');
-function measure(text, size, weight) { canvas.font = (weight || 600) + ' ' + size + 'px ' + FONT; return canvas.measureText(text).width; }
+function measure(text, size, weight, display) { canvas.font = (display ? 400 : (weight || 600)) + ' ' + size + 'px ' + (display ? DISPLAY : FONT); return canvas.measureText(plain(text)).width; }
 function modsOf(node) { return Array.isArray(node.mods) ? {} : (node.mods || {}); }
 function draw(node, parentEl, rect) {
   if (node.vis === false) return;
@@ -48,21 +51,26 @@ function draw(node, parentEl, rect) {
   if (node.text && (node.c === 'TextLabel' || node.c === 'TextButton')) {
     const t = document.createElement('div');
     const size = node.tsize || 14;
-    t.textContent = node.text;
+    const display = node.ff === 'display';
+    const shown = node.rich ? plain(node.text) : node.text;
+    t.textContent = shown;
     const ya = node.ya === 'Top' ? 'flex-start' : node.ya === 'Bottom' ? 'flex-end' : 'center';
-    t.style.cssText = 'position:absolute;inset:0;display:flex;align-items:' + ya + ';font-family:' + FONT + ';line-height:1.15;' +
+    t.style.cssText = 'position:absolute;inset:0;display:flex;align-items:' + ya + ';font-family:' + (display ? DISPLAY : FONT) + ';line-height:1.15;' +
       'white-space:' + (node.wrap ? 'normal' : 'nowrap') + ';overflow:' + (node.trunc ? 'hidden' : 'visible') + ';';
     if (node.trunc && !node.wrap) t.style.textOverflow = 'ellipsis';
     t.style.fontSize = size + 'px';
-    t.style.fontWeight = node.fw || 600;
+    t.style.fontWeight = display ? 400 : (node.fw || 600);
     const xa = node.xa || 'Center';
     t.style.justifyContent = xa === 'Left' ? 'flex-start' : xa === 'Right' ? 'flex-end' : 'center';
     t.style.textAlign = xa === 'Left' ? 'left' : xa === 'Right' ? 'right' : 'center';
     t.style.color = rgb(node.tc, 1 - (node.tt || 0));
     const stroke = arr(m.strokes).find(s => !s.border);
     if (stroke) t.style.textShadow = ['1px 1px', '-1px 1px', '1px -1px', '-1px -1px', '0 2px'].map(o => o + ' 0 ' + rgb(stroke.c, 1 - (stroke.tr || 0))).join(',');
-    if (node.trunc && !node.wrap) { const span = document.createElement('span'); span.textContent = node.text; span.style.overflow = 'hidden'; span.style.textOverflow = 'ellipsis'; t.textContent = ''; t.appendChild(span); }
+    if (node.trunc && !node.wrap) { const span = document.createElement('span'); span.textContent = shown; span.style.overflow = 'hidden'; span.style.textOverflow = 'ellipsis'; t.textContent = ''; t.appendChild(span); }
     el.appendChild(t);
+  }
+  if (node.image) {
+    el.style.background = 'radial-gradient(circle at 50% 38%, #f5cd30 0 24%, transparent 25%), radial-gradient(ellipse at 50% 100%, #0d69ac 0 45%, transparent 46%), #3a4160';
   }
   if (node.viewport) {
     // Схематичный R6-силуэт в цветах модели (настоящий 3D рендер — только в Studio)
@@ -81,7 +89,7 @@ function draw(node, parentEl, rect) {
 function sizeOf(k, cw, ch) {
   let w = k.size[0] * cw + k.size[1], h = k.size[2] * ch + k.size[3];
   if ((k.autosize === 'Y' || k.autosize === 'XY') && k.text) {
-    const lines = Math.max(1, Math.ceil(measure(k.text, k.tsize || 14, k.fw) / Math.max(1, w)));
+    const lines = Math.max(1, Math.ceil(measure(k.text, k.tsize || 14, k.fw, k.ff === 'display') / Math.max(1, w)));
     h = Math.max(h, lines * (k.tsize || 14) * 1.2 + 4);
   }
   if ((k.autosize === 'Y' || k.autosize === 'XY') && !k.text) {

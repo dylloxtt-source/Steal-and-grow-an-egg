@@ -1,6 +1,6 @@
 --[[
-	Выбор башни (клик/тап по модели) и окно башни: уровень, характеристики,
-	следующее улучшение, кнопки Upgrade / Sell и приоритет цели.
+	Выбор башни (клик/тап по модели) и окно башни: превью, уровень, характеристики
+	со стрелками к следующему уровню, кнопки Upgrade / Sell и приоритет цели.
 	Клавиши: U — улучшить, X — продать (повторное нажатие подтверждает), Esc — закрыть.
 ]]
 
@@ -16,6 +16,8 @@ local Format = require(Shared.Logic.Format)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Root = require(script.Parent.Parent.UI.Root)
+local Preview = require(script.Parent.Parent.UI.Preview)
+local TowerText = require(script.Parent.Parent.UI.TowerText)
 local State = require(script.Parent.Parent.State)
 local PlacementController = require(script.Parent.PlacementController)
 local Sound = require(script.Parent.Sound)
@@ -29,7 +31,7 @@ local refs: any = {}
 local ring: Part
 local sellArmedAt = 0
 
-local PRIORITY_NAMES = { First = "Первый", Last = "Последний", Strongest = "Сильный", Weakest = "Слабый" }
+local PRIORITY_NAMES = { First = "First", Last = "Last", Strongest = "Strong", Weakest = "Weak" }
 
 local function towersFolder(): Instance?
 	local id = Players.LocalPlayer:GetAttribute("MatchId")
@@ -38,88 +40,73 @@ local function towersFolder(): Instance?
 	return match and match:FindFirstChild("Towers")
 end
 
-local function special(level: any): string
-	local parts = {}
-	if level.Targets and level.Targets > 1 then
-		table.insert(parts, level.Targets .. " цели")
+local function delta(current: string, nextValue: string?): string
+	if nextValue and nextValue ~= current then
+		return current .. '  <font color="#4CD670">→ ' .. nextValue .. "</font>"
 	end
-	if level.Hits then
-		table.insert(parts, level.Hits .. " удара в серии")
-	end
-	if level.Poison then
-		table.insert(parts, string.format("яд %d/с на %sс", level.Poison.Dps, Format.Decimal(level.Poison.Duration)))
-	end
-	if level.Cloud then
-		table.insert(parts, "облако " .. level.Cloud)
-	end
-	if level.Slow then
-		table.insert(parts, string.format("замедление %d%%", level.Slow.Factor * 100))
-	end
-	if level.Splash then
-		table.insert(parts, "область " .. level.Splash)
-	end
-	if level.Stun then
-		table.insert(parts, "оглушение " .. level.Stun .. "с")
-	end
-	if level.Pierce then
-		table.insert(parts, string.format("пробитие %d%%", level.Pierce * 100))
-	end
-	if level.SpinMax then
-		table.insert(parts, string.format("раскрутка +%d%%", level.SpinMax * 100))
-	end
-	if level.FrenzyEvery then
-		table.insert(parts, "ярость каждые " .. level.FrenzyEvery)
-	end
-	if level.Detect then
-		table.insert(parts, "👁 видит скрытных")
-	end
-	return if #parts > 0 then "✦ " .. table.concat(parts, " • ") else "Без особых эффектов"
+	return current
 end
 
 local function build(layer: Instance)
-	local panel = Root.Fit(Kit.Panel({ Name = "TowerInfo", Size = UDim2.fromOffset(310, 430), Position = UDim2.new(1, -16, 0.5, -20),
+	local panel = Root.Fit(Kit.Panel({ Name = "TowerInfo", Size = UDim2.fromOffset(330, 470), Position = UDim2.new(1, -16, 0.5, 26),
 		AnchorPoint = Vector2.new(1, 0.5), Visible = false, Parent = layer }))
-	Kit.Padding(panel, 14)
 	refs.Panel = panel
-	refs.Name = Kit.Text({ Text = "", Size = UDim2.new(1, -40, 0, 26), TextSize = 20, Weight = "Heavy", Parent = panel })
-	Kit.Button({ Text = "✕", Variant = "Neutral", Size = UDim2.fromOffset(30, 30), Position = UDim2.new(1, 0, 0, -2), AnchorPoint = Vector2.new(1, 0),
-		Parent = panel, OnClick = function()
+	local view = Kit.Create("Frame", { Name = "View", BackgroundColor3 = C.PanelLight, Size = UDim2.fromOffset(72, 72), Position = UDim2.fromOffset(12, 12),
+		BorderSizePixel = 0, Parent = panel })
+	Kit.Corner(view, 12)
+	refs.ViewStroke = Kit.Stroke(view, 0, 3, C.Accent)
+	refs.View = view
+	refs.Name = Kit.Text({ Text = "", Font = "Display", TextSize = 22, Size = UDim2.new(1, -150, 0, 26), Position = UDim2.fromOffset(94, 12), Stroke = true, Parent = panel })
+	refs.Level = Kit.Text({ Text = "", Font = "Display", TextSize = 14, TextColor3 = C.Gold, Size = UDim2.new(1, -110, 0, 18), Position = UDim2.fromOffset(94, 40),
+		Stroke = true, Parent = panel })
+	local pips = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(180, 10), Position = UDim2.fromOffset(94, 66), Parent = panel })
+	Kit.List(pips, 5, true)
+	refs.Pips = {}
+	for i = 1, Towers.MaxLevel do
+		local pip = Kit.Create("Frame", { BackgroundColor3 = C.PanelLighter, Size = UDim2.fromOffset(30, 10), LayoutOrder = i, BorderSizePixel = 0, Parent = pips })
+		Kit.Round(pip)
+		refs.Pips[i] = pip
+	end
+	Kit.Button({ Name = "Close", Text = "✕", Variant = "Danger", Size = UDim2.fromOffset(38, 38), Position = UDim2.new(1, -10, 0, 10), AnchorPoint = Vector2.new(1, 0),
+		TextSize = 16, Radius = 10, Parent = panel, OnClick = function()
 			TowerController.Select(nil)
 		end })
-	refs.Level = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 28), TextSize = 14, TextColor3 = C.Accent, Weight = "Bold", Parent = panel })
-	refs.LevelBar = Kit.Bar(panel, C.Accent, UDim2.new(1, 0, 0, 6), UDim2.fromOffset(0, 50))
-	local stats = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 120), Position = UDim2.fromOffset(0, 64), Parent = panel })
-	Kit.List(stats, 2)
-	refs.Stats = {}
-	for i, name in { "Урон", "Дальность", "Атак в сек.", "Урон в сек.", "Цель" } do
-		local row = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 20), LayoutOrder = i, Parent = stats })
-		Kit.Text({ Text = name, Size = UDim2.new(0.5, 0, 1, 0), TextSize = 14, TextColor3 = C.SubText, Parent = row })
-		refs.Stats[i] = Kit.Text({ Text = "", Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.fromScale(0.5, 0), TextXAlignment = Enum.TextXAlignment.Right,
-			TextSize = 14, Weight = "Bold", Parent = row })
-	end
-	refs.Special = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 180), TextSize = 13, TextWrapped = true,
-		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.Gold, Parent = panel })
-	refs.Next = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 36), Position = UDim2.fromOffset(0, 212), TextSize = 13, TextWrapped = true,
-		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.SubText, Parent = panel })
-	refs.Owner = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 252), TextSize = 13, TextColor3 = C.Muted, Parent = panel })
 
-	local priority = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 276), Parent = panel })
-	Kit.List(priority, 4, true)
-	refs.PriorityButtons = {}
-	for i, name in Towers.Priorities do
-		refs.PriorityButtons[name] = Kit.Button({ Text = PRIORITY_NAMES[name], Variant = "Neutral", Size = UDim2.fromOffset(67, 30), TextSize = 12,
-			LayoutOrder = i, Parent = priority, OnClick = function()
-				if selected then
-					State.Fire("SetPriority", { uid = selected:GetAttribute("Uid"), priority = name })
-				end
-			end })
+	local stats = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 124), Position = UDim2.fromOffset(12, 94), Parent = panel })
+	Kit.List(stats, 4)
+	refs.Stats = {}
+	for i, entry in { { "⚔", "Damage" }, { "◎", "Range" }, { "⚡", "Fire rate" }, { "📈", "DPS" } } do
+		local row = Kit.Inset({ Size = UDim2.new(1, 0, 0, 28), LayoutOrder = i, Radius = 8, Parent = stats })
+		Kit.Text({ Text = entry[1] .. "  " .. entry[2], Font = "Display", TextSize = 14, TextColor3 = C.SubText, Size = UDim2.new(0.45, 0, 1, 0),
+			Position = UDim2.fromOffset(10, 0), Parent = row })
+		refs.Stats[i] = Kit.Text({ Text = "", Font = "Display", TextSize = 15, RichText = true, Size = UDim2.new(0.55, -10, 1, 0), Position = UDim2.fromScale(0.45, 0),
+			TextXAlignment = Enum.TextXAlignment.Right, Parent = row })
 	end
-	refs.Upgrade = Kit.Button({ Text = "Улучшить", Variant = "Success", Size = UDim2.new(1, 0, 0, 44), Position = UDim2.new(0, 0, 1, -96),
-		TextSize = 16, Parent = panel, OnClick = function()
+	refs.Special = Kit.Text({ Text = "", Size = UDim2.new(1, -24, 0, 32), Position = UDim2.fromOffset(12, 222), TextSize = 12, Weight = "Bold", TextWrapped = true,
+		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.Gold, Parent = panel })
+	Kit.Text({ Text = "TARGET", Font = "Display", TextSize = 13, TextColor3 = C.SubText, Size = UDim2.fromOffset(100, 16), Position = UDim2.fromOffset(14, 258), Parent = panel })
+	refs.Owner = Kit.Text({ Text = "", Font = "Display", TextSize = 12, TextColor3 = C.Muted, Size = UDim2.fromOffset(180, 16), Position = UDim2.new(1, -14, 0, 258),
+		AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, Parent = panel })
+	local options = {}
+	for _, name in Towers.Priorities do
+		table.insert(options, { Id = name, Text = PRIORITY_NAMES[name] })
+	end
+	refs.Priority = Kit.Segmented({ Options = options, Size = UDim2.new(1, -24, 0, 38), Position = UDim2.fromOffset(12, 278), TextSize = 14, Parent = panel,
+		OnSelect = function(name)
+			if selected and selected:GetAttribute("OwnerId") == Players.LocalPlayer.UserId then
+				Sound.Play("Click")
+				refs.Priority:Set(name)
+				State.Fire("SetPriority", { uid = selected:GetAttribute("Uid"), priority = name })
+			end
+		end })
+	refs.Upgrade = Kit.Button({ Name = "Upgrade", Text = "UPGRADE", Variant = "Success", Size = UDim2.new(1, -24, 0, 58), Position = UDim2.fromOffset(12, 328),
+		TextSize = 20, Parent = panel, OnClick = function()
 			TowerController.Upgrade()
 		end })
-	refs.Sell = Kit.Button({ Text = "Продать", Variant = "Danger", Size = UDim2.new(1, 0, 0, 40), Position = UDim2.new(0, 0, 1, -44),
-		TextSize = 15, Parent = panel, OnClick = function()
+	refs.Next = Kit.Text({ Text = "", TextSize = 11, Weight = "Bold", TextColor3 = C.SubText, Size = UDim2.new(1, -24, 0, 14), Position = UDim2.fromOffset(12, 390),
+		TextXAlignment = Enum.TextXAlignment.Center, Parent = panel })
+	refs.Sell = Kit.Button({ Name = "Sell", Text = "SELL", Variant = "Danger", Size = UDim2.new(1, -24, 0, 48), Position = UDim2.fromOffset(12, 410),
+		TextSize = 17, Parent = panel, OnClick = function()
 			TowerController.Sell()
 		end })
 
@@ -137,6 +124,8 @@ local function build(layer: Instance)
 	ring.Parent = workspace
 end
 
+local shownModel = ""
+
 local function refresh()
 	local model = selected
 	if not model or not model.Parent then
@@ -148,41 +137,52 @@ local function refresh()
 	local def = Towers.ById[model:GetAttribute("TowerId")]
 	local level = model:GetAttribute("Level") or 1
 	local stats = def.Levels[level]
-	local mine = model:GetAttribute("OwnerId") == Players.LocalPlayer.UserId
-	refs.Name.Text = def.Icon .. " " .. def.Name
-	refs.Level.Text = string.format("Уровень %d / %d  •  %s", level, Towers.MaxLevel, stats.Text)
-	refs.LevelBar:Set(level / Towers.MaxLevel, "")
-	refs.Stats[1].Text = Format.Number(stats.Damage) .. (if stats.Hits then " ×" .. stats.Hits else "")
-	refs.Stats[2].Text = Format.Decimal(stats.Range)
-	refs.Stats[3].Text = Format.Decimal(1 / stats.Cooldown, 2)
-	refs.Stats[4].Text = Format.Number(Towers.Dps(stats))
-	local priority = model:GetAttribute("Priority") or "First"
-	refs.Stats[5].Text = PRIORITY_NAMES[priority] or priority
-	refs.Special.Text = special(stats)
 	local nextStats = def.Levels[level + 1]
-	if nextStats then
-		refs.Next.Text = string.format("Далее: %s — урон %s → %s, дальность %s → %s", nextStats.Text, Format.Number(stats.Damage),
-			Format.Number(nextStats.Damage), Format.Decimal(stats.Range), Format.Decimal(nextStats.Range))
-	else
-		refs.Next.Text = "Максимальный уровень достигнут"
+	local mine = model:GetAttribute("OwnerId") == Players.LocalPlayer.UserId
+	local rarity = TowerText.RarityColor(def)
+	local key = def.Id .. ":" .. level
+	if shownModel ~= key then
+		shownModel = key
+		for _, child in refs.View:GetChildren() do
+			if child:IsA("ViewportFrame") then
+				child:Destroy()
+			end
+		end
+		Preview.Tower(def.Id, level, refs.View, UDim2.fromScale(1, 1), nil, "upper")
 	end
-	refs.Owner.Text = if mine then "Твоя башня" else "Башня союзника"
-	for name, button in refs.PriorityButtons do
-		button.Visible = mine
-		Kit.SetVariant(button, if name == priority then "Primary" else "Neutral")
+	refs.ViewStroke.Color = rarity
+	refs.Name.Text = def.Name
+	refs.Level.Text = string.format("LV %d / %d  •  %s", level, Towers.MaxLevel, stats.Text)
+	for i, pip in refs.Pips do
+		pip.BackgroundColor3 = if i <= level then C.Gold else C.PanelLighter
 	end
+	local damage = Format.Number(stats.Damage) .. (if stats.Hits then " ×" .. stats.Hits else "")
+	local nextDamage = if nextStats then Format.Number(nextStats.Damage) .. (if nextStats.Hits then " ×" .. nextStats.Hits else "") else nil
+	refs.Stats[1].Text = delta(damage, nextDamage)
+	refs.Stats[2].Text = delta(Format.Decimal(stats.Range), if nextStats then Format.Decimal(nextStats.Range) else nil)
+	refs.Stats[3].Text = delta(TowerText.FireRate(stats), if nextStats then TowerText.FireRate(nextStats) else nil)
+	refs.Stats[4].Text = delta(Format.Number(Towers.Dps(stats)), if nextStats then Format.Number(Towers.Dps(nextStats)) else nil)
+	refs.Special.Text = "✦ " .. TowerText.SpecialLine(stats)
+	local priority = model:GetAttribute("Priority") or "First"
+	refs.Priority:Set(priority)
+	refs.Owner.Text = if mine then "YOUR TOWER" else "👥 " .. string.upper(tostring(model:GetAttribute("OwnerName") or "TEAMMATE"))
+	refs.Priority.Frame.Visible = mine
 	refs.Upgrade.Visible = mine
 	refs.Sell.Visible = mine
+	refs.Next.Visible = mine
 	if nextStats then
 		local affordable = State.Cash() >= nextStats.Cost
-		refs.Upgrade.Text = string.format("Улучшить  %s  [U]", Format.Cash(nextStats.Cost))
+		Kit.SetText(refs.Upgrade, string.format("⬆ UPGRADE  %s", Format.Cash(nextStats.Cost)))
 		Kit.SetVariant(refs.Upgrade, if affordable then "Success" else "Disabled")
+		refs.Next.Text = "NEXT: " .. string.upper(nextStats.Text) .. (if Kit.IsTouch() then "" else "   [U]")
 	else
-		refs.Upgrade.Text = "Max Level"
-		Kit.SetVariant(refs.Upgrade, "Disabled")
+		Kit.SetText(refs.Upgrade, "★ MAX LEVEL")
+		Kit.SetVariant(refs.Upgrade, "Gold")
+		refs.Upgrade:SetAttribute("Variant", "Disabled")
+		refs.Next.Text = "FULLY UPGRADED"
 	end
 	local refund = math.floor((model:GetAttribute("Spent") or 0) * Economy.SellRefund)
-	refs.Sell.Text = if os.clock() - sellArmedAt < 2.5 then "Точно продать?  [X]" else string.format("Продать  +%s  [X]", Format.Cash(refund))
+	Kit.SetText(refs.Sell, if os.clock() - sellArmedAt < 2.5 then "TAP AGAIN TO SELL" else string.format("SELL  +%s", Format.Cash(refund)))
 	local root = model.PrimaryPart
 	if root then
 		local range = stats.Range

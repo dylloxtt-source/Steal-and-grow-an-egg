@@ -99,7 +99,7 @@ end
 local function act(player, name: string, payload: any?): any
 	for _ = 1, 10 do
 		local result = Engine.InvokeAs(player, name, payload)
-		if result.message ~= "Слишком часто" then
+		if result.message ~= "Slow down!" then
 			return result
 		end
 		task.wait(0.25)
@@ -161,6 +161,58 @@ check("ScreenGui TD_UI создан", gui ~= nil)
 check("клиент получил профиль", ClientState.Profile ~= nil and ClientState.Profile.level == 1)
 check("слой лобби виден, HUD матча скрыт", gui.Lobby.Visible == true and gui.Match.Visible == false)
 check("в режиме DataStore (эмулятор) нет ложного «тестового режима»", DataService.MemoryMode == false)
+
+------------------------------------------------------------------------
+section("Магазин башен и набор")
+------------------------------------------------------------------------
+
+local ShopController = client.require(C.Controllers.ShopController)
+local p1profile = DataService:GetSession(p1).Profile
+check("новый игрок: только мечник, он в наборе", p1profile.owned.swordsman == true and p1profile.owned.archer == nil
+	and #p1profile.loadout == 1 and p1profile.loadout[1] == "swordsman")
+r = act(p1, "BuyTower", { tower = "archer" })
+check("без гемов купить нельзя", r.ok == false and p1profile.owned.archer == nil, r.message)
+p1profile.gems = 6000
+r = act(p1, "BuyTower", { tower = "archer" })
+check("покупка лучника за гемы", r.ok and p1profile.owned.archer and p1profile.gems == 6000 - Towers.ById.archer.Price, r.message)
+check("купленная башня сразу в наборе", table.find(p1profile.loadout, "archer") ~= nil)
+r = act(p1, "BuyTower", { tower = "archer" })
+check("повторная покупка отклонена", r.ok == false and p1profile.gems == 6000 - Towers.ById.archer.Price)
+r = act(p1, "BuyTower", { tower = "dragon" })
+check("несуществующая башня отклонена", r.ok == false)
+r = act(p1, "EquipTower", { tower = "wolverine" })
+check("нельзя взять некупленную башню", r.ok == false, r.message)
+for _, id in { "toxic", "sniper", "pistol", "wolverine" } do
+	act(p1, "BuyTower", { tower = id })
+end
+check("набор заполнен до " .. Towers.LoadoutSize, #p1profile.loadout == Towers.LoadoutSize and p1profile.owned.wolverine == true
+	and table.find(p1profile.loadout, "wolverine") == nil)
+r = act(p1, "EquipTower", { tower = "wolverine" })
+check("в полный набор без слота не добавить", r.ok == false, r.message)
+r = act(p1, "EquipTower", { tower = "wolverine", slot = 5 })
+check("замена башни в слоте 5", r.ok and p1profile.loadout[5] == "wolverine" and table.find(p1profile.loadout, "pistol") == nil, r.message)
+r = act(p1, "EquipTower", { tower = "archer", slot = 99 })
+check("неверный слот отклонён", r.ok == false)
+r = act(p1, "UnequipTower", { tower = "swordsman" })
+check("снять башню из набора", r.ok and table.find(p1profile.loadout, "swordsman") == nil)
+tick(0.2)
+check("клиент получил обновлённый профиль", ClientState.Profile and ClientState.Profile.owned.wolverine == true and #ClientState.Profile.loadout == 4)
+ShopController.Open()
+tick(0.2)
+check("магазин открыт и показывает статусы", visible(gui.Shop.Window) and findText(gui.Shop, "EQUIPPED") ~= nil and findText(gui.Shop, "OWNED") ~= nil)
+check("магазин: цена некупленной башни", findText(gui.Shop, "💎 " .. Towers.ById.lumberjack.Price) ~= nil)
+ShopController.Close()
+r = act(p1, "SetSetting", { key = "autoSkip", value = true })
+check("настройка авто-скипа сохраняется в профиле", r.ok and p1profile.settings.autoSkip == true)
+r = act(p1, "SetSetting", { key = "fly", value = true })
+check("неизвестная настройка отклонена", r.ok == false)
+r = act(p1, "SetSetting", { key = "autoSkip", value = "yes" })
+check("неверное значение настройки отклонено", r.ok == false and p1profile.settings.autoSkip == true)
+act(p1, "SetSetting", { key = "autoSkip", value = false })
+local stored0 = Engine.DataStoreData["p_" .. p1.UserId]
+task.wait(0.2)
+stored0 = Engine.DataStoreData["p_" .. p1.UserId]
+check("покупки сохраняются в DataStore сразу", stored0 and stored0.owned and stored0.owned.wolverine == true)
 
 ------------------------------------------------------------------------
 section("Лифты")
@@ -275,10 +327,12 @@ check("фаза подготовки", solo.Waves.Phase == "Prep" and solo.Waves
 tick(0.3)
 check("клиент: HUD матча виден, лобби скрыто", gui.Match.Visible == true and gui.Lobby.Visible == false)
 check("клиент: снимок матча получен", ClientState.Match ~= nil and ClientState.Match.mapId == "greenfield")
-check("HUD: волна", findText(gui.Match, "ВОЛНА 0 / 30") ~= nil)
+check("HUD: волна", findText(gui.Match, "WAVE 0") ~= nil)
 check("HUD: деньги", findText(gui.Match, "$" .. Economy.StartCash) ~= nil)
-check("HUD: таймер подготовки", findText(gui.Match, "старт через") ~= nil)
-check("HUD: 8 карточек башен", #gui.Match.BottomCenter.TowerBar:GetChildren() >= 8 and gui.Match.BottomCenter.TowerBar:FindFirstChild("wolverine") ~= nil)
+check("HUD: таймер подготовки", findText(gui.Match, "WAVE 1 IN") ~= nil)
+local bar = gui.Match.BottomCenter.TowerBar
+check("HUD: панель башен = набор игрока", bar:FindFirstChild("archer") ~= nil and bar:FindFirstChild("wolverine") ~= nil
+	and bar:FindFirstChild("swordsman") == nil and bar:FindFirstChild("lumberjack") == nil)
 local Lighting = Engine.DataModel:GetService("Lighting")
 check("клиент: освещение карты", math.abs(Lighting.ClockTime - Maps.ById.greenfield.Lighting.ClockTime) < 0.01)
 
@@ -329,7 +383,7 @@ r = act(p1, "PlaceTower", { tower = "dragon", x = 0, z = 0 })
 check("несуществующая башня отклонена", r.ok == false)
 local best = spots(solo, 12)[1]
 r = act(p1, "PlaceTower", { tower = "wolverine", x = best.X, z = best.Z })
-check("не хватает денег — отказ", r.ok == false and r.message == "Недостаточно денег", r.message)
+check("не хватает денег — отказ", r.ok == false and r.message == "Not enough cash", r.message)
 check("деньги не списаны при отказе", solo.PlayerState[p1.UserId].Cash == Economy.StartCash)
 
 -- Клиентский призрак: камера смотрит сверху на точку
@@ -364,8 +418,14 @@ check("деньги списаны", solo.PlayerState[p1.UserId].Cash == Economy
 r = act(p1, "PlaceTower", { tower = "archer", x = best.X + 0.5, z = best.Z })
 check("нельзя ставить вплотную к другой башне", r.ok == false and r.message == Placement.Reasons.Tower, r.message)
 
--- Все 8 башен (денег добавляем напрямую, чтобы проверить каждую)
 solo.PlayerState[p1.UserId].Cash = 100000
+local spotL = spots(solo, 8)[1]
+r = act(p1, "PlaceTower", { tower = "lumberjack", x = spotL.X, z = spotL.Z })
+check("башню не из набора поставить нельзя", r.ok == false and r.message == "Lumberjack is not in your loadout", r.message)
+HUDController.Choose("lumberjack")
+check("клиент не даёт выбрать башню не из набора", not PlacementController.Active())
+-- Все 8 башен: тестовый обход набора, чтобы проверить каждую атаку
+solo.PlayerState[p1.UserId].Loadout = nil
 for _, def in Towers.List do
 	if def.Id ~= "archer" then
 		local spot = spots(solo, def.Levels[1].Range)[1]
@@ -411,7 +471,7 @@ local fastWalker = solo.Enemies.Alive[1]
 tick(0.3)
 check("скорость врагов для клиента учитывает x2", fastWalker == nil or fastWalker.Dead
 	or math.abs((fastWalker.Model:GetAttribute("Speed") or 0) - fastWalker.SyncedSpeed * 2) < 1e-6)
-check("HUD: кнопка x2 отмечена", findText(gui.Match, "x2 включено") ~= nil)
+check("HUD: кнопка x2 отмечена", findText(gui.Match, "x2 ON") ~= nil)
 r = act(p1, "VoteSpeed")
 check("повторный голос отменяет x2", r.ok and solo.TimeScale == 1)
 check("клиент видит врагов (тег Enemy)", #Engine.Workspace.ActiveMatches:GetDescendants() > 0)
@@ -495,7 +555,7 @@ for _ = 3, Towers.MaxLevel do
 end
 check("максимальный уровень", archer.Level == Towers.MaxLevel)
 r = act(p1, "UpgradeTower", { uid = archer.Uid })
-check("сверх максимума — отказ", r.ok == false and r.message == "Максимальный уровень", r.message)
+check("сверх максимума — отказ", r.ok == false and r.message == "Max level reached", r.message)
 r = act(p1, "UpgradeTower", { uid = "1; DROP" })
 check("неверный uid отклонён", r.ok == false)
 r = act(p2, "UpgradeTower", { uid = archer.Uid })
@@ -512,8 +572,8 @@ end
 TowerController.Select(archerModel)
 tick(0.3)
 check("меню башни открыто", visible(gui.Match.TowerInfo))
-check("меню: Max Level на максимуме", findText(gui.Match.TowerInfo, "Max Level") ~= nil)
-check("меню: приоритеты", findText(gui.Match.TowerInfo, "Сильный") ~= nil)
+check("меню: Max Level на максимуме", findText(gui.Match.TowerInfo, "MAX LEVEL") ~= nil)
+check("меню: приоритеты", findText(gui.Match.TowerInfo, "Strong") ~= nil)
 
 r = act(p1, "SetPriority", { uid = archer.Uid, priority = "Strongest" })
 check("приоритет Strongest", r.ok and archer.Priority == "Strongest" and archer.Model:GetAttribute("Priority") == "Strongest")
@@ -584,7 +644,7 @@ check("нельзя выйти в лобби посреди матча этой 
 local limited = 0
 for _ = 1, 30 do
 	local result = Engine.InvokeAs(p1, "SetPriority", { uid = archer.Uid, priority = "First" })
-	if result.message == "Слишком часто" then
+	if result.message == "Slow down!" then
 		limited += 1
 	end
 end
@@ -604,6 +664,77 @@ Engine.Leave(p2)
 tick(0.5)
 check("все вышли → матч закрыт и очищен", MatchService.Matches[duoId] == nil and Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. duoId) == nil,
 	tostring(MatchService.Matches[duoId] ~= nil) .. " " .. tostring(Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. duoId)))
+
+------------------------------------------------------------------------
+section("Авто-скип")
+------------------------------------------------------------------------
+
+local function killAll(match)
+	match.Waves.Queue = {}
+	for _, e in table.clone(match.Enemies.Alive) do
+		match.Enemies:Kill(e)
+	end
+end
+act(p3, "SetSetting", { key = "autoSkip", value = true })
+local autoMatch = MatchService:Create({ p3 }, "greenfield")
+check("матч с авто-скипом создан", autoMatch ~= nil and autoMatch.PlayerState[p3.UserId].AutoSkip == true)
+tick(3)
+check("подготовка не пропускается, пока не поставлена башня", autoMatch.Waves.Phase == "Prep")
+local spot3 = spots(autoMatch, 8)[1]
+r = act(p3, "PlaceTower", { tower = "swordsman", x = spot3.X, z = spot3.Z })
+check("новичок ставит стартового мечника", r.ok, r.message)
+tick(0.5)
+check("после первой башни подготовка пропущена авто-скипом", autoMatch.Waves.Wave == 1 and autoMatch.Waves.Phase == "Wave")
+for _ = 1, 40 do
+	killAll(autoMatch)
+	tick(0.25)
+	if autoMatch.Waves.Phase == "Intermission" then
+		break
+	end
+end
+check("волна пройдена → перерыв", autoMatch.Waves.Phase == "Intermission")
+local waveBefore = autoMatch.Waves.Wave
+tick(2.2)
+check("авто-скип начал следующую волну через ~1.5 с", autoMatch.Waves.Wave == waveBefore + 1, autoMatch.Waves.Wave)
+r = act(p3, "SetSetting", { key = "autoSkip", value = false })
+check("выключение авто-скипа применяется в матче", r.ok and autoMatch.PlayerState[p3.UserId].AutoSkip == false)
+for _ = 1, 40 do
+	killAll(autoMatch)
+	tick(0.25)
+	if autoMatch.Waves.Phase == "Intermission" then
+		break
+	end
+end
+waveBefore = autoMatch.Waves.Wave
+tick(3)
+check("без авто-скипа перерыв идёт полностью", autoMatch.Waves.Phase == "Intermission" and autoMatch.Waves.Wave == waveBefore)
+MatchService:Close(autoMatch)
+
+-- Команда: авто-скип у одного игрока не пропускает ожидание за другого
+local p7, p8 = Engine.NewPlayer("Gina"), Engine.NewPlayer("Hank")
+for _, p in { p7, p8 } do
+	Engine.Join(p)
+	Engine.SpawnCharacter(p, Vector3.new(0, 3, 40))
+end
+task.wait(0.3)
+act(p7, "SetSetting", { key = "autoSkip", value = true })
+local teamMatch = MatchService:Create({ p7, p8 }, "greenfield")
+local spot7 = spots(teamMatch, 8)[1]
+act(p7, "PlaceTower", { tower = "swordsman", x = spot7.X, z = spot7.Z })
+tick(3)
+check("авто-скип одного не пропускает подготовку за всю команду", teamMatch.Waves.Phase == "Prep")
+r = act(p8, "VoteSkip")
+tick(0.5)
+check("голос второго + авто-скип первого → волна началась", r.ok and teamMatch.Waves.Wave == 1, r.message)
+local snap = teamMatch:Snapshot()
+local flagged = false
+for _, entry in snap.team do
+	if entry.userId == p7.UserId and entry.autoSkip then
+		flagged = true
+	end
+end
+check("снимок показывает авто-скип игрока", flagged)
+MatchService:Close(teamMatch)
 
 ------------------------------------------------------------------------
 section("Поражение, итоги, возврат в лобби")
@@ -626,15 +757,15 @@ end
 check("враги наносят урон базе", solo.BaseHealth < hpBefore)
 check("поражение при 0 здоровья базы", solo.Ended and solo.Result == "Defeat", solo.Result)
 tick(0.3)
-check("клиент: экран итогов", gui.Results.Results.Visible == true and findText(gui.Results, "ПОРАЖЕНИЕ") ~= nil)
-check("итоги: кнопка «В лобби»", findText(gui.Results, "В лобби") ~= nil)
+check("клиент: экран итогов", gui.Results.Results.Visible == true and findText(gui.Results, "DEFEAT") ~= nil)
+check("итоги: кнопка «В лобби»", findText(gui.Results, "RETURN TO LOBBY") ~= nil)
 local profile = DataService:GetSession(p1).Profile
 check("профиль: матч и поражение записаны", profile.stats.matches == 1 and profile.stats.losses == 1)
 check("профиль: награды начислены", profile.gems > 0)
 task.wait(0.2)
 local stored = Engine.DataStoreData["p_" .. p1.UserId]
 check("профиль сохранён в DataStore", stored and stored.stats and stored.stats.matches == 1)
-check("итоги: «Прогресс сохранён» только после реальной записи", findText(gui.Results, "Прогресс сохранён") ~= nil)
+check("итоги: «Прогресс сохранён» только после реальной записи", findText(gui.Results, "Progress saved") ~= nil)
 r = act(p1, "PlaceTower", { tower = "archer", x = best.X, z = best.Z })
 check("после окончания башни не ставятся", r.ok == false)
 local soloId = solo.Id

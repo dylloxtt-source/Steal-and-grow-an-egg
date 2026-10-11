@@ -13,9 +13,10 @@ return {
 	WaveBonusPerWave = 30,
 	BossBonus = 250, -- дополнительно каждому за убитого босса
 
+	-- Гемы тратятся в магазине башен (цены — Config/Towers, поле Price)
 	Gems = {
-		PerWave = 3,
-		Victory = 120,
+		PerWave = 4,
+		Victory = 150,
 		PerKills = 0.15,
 	},
 	Xp = {

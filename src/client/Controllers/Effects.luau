@@ -8,6 +8,7 @@
 local RunService = game:GetService("RunService")
 
 local Effects = {}
+Effects.Low = false -- настройка «Low Effects»: меньше частиц, без вспышек и искр
 
 local folder: Folder
 local pools: { [string]: { BasePart } } = {}
@@ -84,6 +85,9 @@ function Effects.Tracer(from: Vector3, to: Vector3, color: Color3, width: number
 end
 
 function Effects.Flash(position: Vector3, color: Color3, size: number?)
+	if Effects.Low then
+		return
+	end
 	local s = size or 0.8
 	spawn("ball", 0.07, function(part, alpha)
 		part.Color = color
@@ -153,8 +157,9 @@ function Effects.Slash(position: Vector3, facing: Vector3, color: Color3, size: 
 end
 
 function Effects.Puff(position: Vector3, color: Color3, count: number?)
-	for i = 1, count or 6 do
-		local angle = (i / (count or 6)) * math.pi * 2
+	local n = if Effects.Low then math.min(3, count or 6) else count or 6
+	for i = 1, n do
+		local angle = (i / n) * math.pi * 2
 		local dir = Vector3.new(math.cos(angle), 0.6 + (i % 3) * 0.3, math.sin(angle))
 		spawn("block", 0.5, function(part, alpha)
 			part.Material = Enum.Material.SmoothPlastic
@@ -178,6 +183,9 @@ function Effects.Cloud(position: Vector3, radius: number)
 end
 
 function Effects.Sparkle(position: Vector3, color: Color3)
+	if Effects.Low then
+		return
+	end
 	for i = 1, 8 do
 		local angle = i / 8 * math.pi * 2
 		spawn("block", 0.6, function(part, alpha)
@@ -187,6 +195,38 @@ function Effects.Sparkle(position: Vector3, color: Color3)
 			part.Transparency = alpha
 		end)
 	end
+end
+
+-- Всплывающая надпись над точкой мира («+$13», «-5 ❤»): BillboardGui с подъёмом и затуханием
+local popups: { any } = {}
+local MAX_POPUPS = 24
+function Effects.Popup(position: Vector3, text: string, color: Color3, size: number?)
+	if #popups >= MAX_POPUPS then
+		local oldest = table.remove(popups, 1)
+		oldest.Gui:Destroy()
+	end
+	local anchor = Instance.new("Attachment")
+	-- Terrain стоит в начале координат, поэтому Position вложения — мировая позиция
+	anchor.Position = position
+	anchor.Parent = workspace.Terrain
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(120, 40)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 160
+	gui.Adornee = anchor
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Text = text
+	label.TextColor3 = color
+	label.TextSize = size or 22
+	label.FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json")
+	label.TextStrokeTransparency = 0.2
+	label.TextStrokeColor3 = Color3.new(0, 0, 0)
+	label.Parent = gui
+	gui.Parent = anchor
+	table.insert(popups, { Gui = anchor, Label = label, Bill = gui, Start = os.clock(), Base = position })
 end
 
 function Effects.Init()
@@ -202,6 +242,17 @@ function Effects.Init()
 			if alpha >= 1 then
 				table.remove(active, i)
 				release(effect.Kind, effect.Part)
+			end
+		end
+		for i = #popups, 1, -1 do
+			local popup = popups[i]
+			local alpha = math.min(1, (now - popup.Start) / 0.9)
+			popup.Bill.StudsOffsetWorldSpace = Vector3.new(0, 1 + alpha * 3, 0)
+			popup.Label.TextTransparency = math.max(0, alpha * 1.6 - 0.6)
+			popup.Label.TextStrokeTransparency = math.max(0.2, alpha * 1.6 - 0.6)
+			if alpha >= 1 then
+				table.remove(popups, i)
+				popup.Gui:Destroy()
 			end
 		end
 	end)

@@ -99,20 +99,20 @@ end
 
 function ElevatorService:Join(player: Player, elevator: any): (boolean, string?)
 	if player:GetAttribute("MatchId") then
-		return false, "Ты уже в матче"
+		return false, "You are already in a match"
 	end
 	local current = ElevatorService:ElevatorOf(player)
 	if current == elevator then
 		return true, nil
 	end
 	if current then
-		return false, "Ты уже в другом лифте"
+		return false, "You are already in another elevator"
 	end
 	if elevator.State == "InMatch" then
-		return false, "Лифт отправляется — подожди"
+		return false, "This elevator is departing — please wait"
 	end
 	if #elevator.Members >= elevator.Capacity then
-		return false, string.format("Лифт заполнен (%d/%d)", #elevator.Members, elevator.Capacity)
+		return false, string.format("This elevator is full (%d/%d)", #elevator.Members, elevator.Capacity)
 	end
 	table.insert(elevator.Members, player)
 	elevator.Ready[player.UserId] = false
@@ -170,7 +170,7 @@ local function launch(elevator: any)
 		elevator.State = "Waiting"
 		elevator.Timer = config.RevertTime
 		for _, member in valid do
-			services.DataService:Notify(member, err or "Не удалось создать матч", "error")
+			services.DataService:Notify(member, err or "Could not start the match", "error")
 		end
 		dirty = true
 		return
@@ -283,10 +283,10 @@ local function updateBooths()
 		booth.MapLabel.Text = "🗺 " .. Maps.ById[elevator.MapId].Name
 		booth.PlayersLabel.Text = string.format("👥 %d / %d", #elevator.Members, elevator.Capacity)
 		local status = ({
-			Empty = "Свободен — заходи!",
-			Waiting = "Ожидание " .. Format.Time(elevator.Timer),
-			Starting = "Старт через " .. tostring(math.ceil(elevator.Timer)),
-			InMatch = "Матч запущен",
+			Empty = "Open — step in!",
+			Waiting = "Waiting " .. Format.Time(elevator.Timer),
+			Starting = "Starting in " .. tostring(math.ceil(elevator.Timer)),
+			InMatch = "In match",
 		})[elevator.State]
 		booth.StatusLabel.Text = status
 		booth.StatusLabel.TextColor3 = color
@@ -334,24 +334,24 @@ function ElevatorService:Start()
 	local function leaderElevator(player: Player): (any?, string?)
 		local elevator = ElevatorService:ElevatorOf(player)
 		if not elevator then
-			return nil, "Ты не в лифте"
+			return nil, "You are not in an elevator"
 		end
 		if elevator.Leader ~= player then
-			return nil, "Это может сделать только лидер группы"
+			return nil, "Only the party leader can do that"
 		end
 		return elevator, nil
 	end
 
 	NetService:Handle("ElevatorSetMap", function(player, _session, payload)
 		if not Check.Table(payload) or not Check.String(payload.map, 32) or not Maps.ById[payload.map] then
-			return false, "Неверная карта"
+			return false, "Invalid map"
 		end
 		local elevator, err = leaderElevator(player)
 		if not elevator then
 			return false, err
 		end
 		if elevator.State ~= "Waiting" then
-			return false, "Карту можно менять только во время ожидания"
+			return false, "The map can only be changed while waiting"
 		end
 		elevator.MapId = payload.map
 		dirty = true
@@ -360,17 +360,17 @@ function ElevatorService:Start()
 
 	NetService:Handle("ElevatorSetCapacity", function(player, _session, payload)
 		if not Check.Table(payload) or not Check.Int(payload.capacity, config.MinCapacity, config.MaxCapacity) then
-			return false, "Размер группы: от 1 до 4"
+			return false, "Party size must be 1–4"
 		end
 		local elevator, err = leaderElevator(player)
 		if not elevator then
 			return false, err
 		end
 		if elevator.State ~= "Waiting" then
-			return false, "Нельзя менять во время отсчёта"
+			return false, "Can't change that during the countdown"
 		end
 		if payload.capacity < #elevator.Members then
-			return false, "В лифте уже больше игроков"
+			return false, "More players are already in this elevator"
 		end
 		elevator.Capacity = payload.capacity
 		dirty = true
@@ -379,11 +379,11 @@ function ElevatorService:Start()
 
 	NetService:Handle("ElevatorReady", function(player, _session, payload)
 		if not Check.Table(payload) or type(payload.ready) ~= "boolean" then
-			return false, "Неверный запрос"
+			return false, "Invalid request"
 		end
 		local elevator = ElevatorService:ElevatorOf(player)
 		if not elevator then
-			return false, "Ты не в лифте"
+			return false, "You are not in an elevator"
 		end
 		elevator.Ready[player.UserId] = payload.ready
 		dirty = true
@@ -393,7 +393,7 @@ function ElevatorService:Start()
 	NetService:Handle("ElevatorLeave", function(player)
 		local elevator = ElevatorService:ElevatorOf(player)
 		if not elevator then
-			return false, "Ты не в лифте"
+			return false, "You are not in an elevator"
 		end
 		ElevatorService:Leave(player, elevator)
 		pushOut(elevator, player)
@@ -406,7 +406,7 @@ function ElevatorService:Start()
 			return false, err
 		end
 		if elevator.State ~= "Waiting" then
-			return false, "Отсчёт уже идёт"
+			return false, "The countdown has already started"
 		end
 		beginStarting(elevator, config.StartTime)
 		return true, nil

@@ -93,7 +93,56 @@ function Match:AddPlayer(player: Player)
 		Earned = 0,
 		TowersPlaced = 0,
 		Connected = true,
+		Loadout = nil :: { string }?, -- башни, которые игрок взял в матч (nil — без ограничений)
+		AutoSkip = false,
 	}
+end
+
+-- Набор башен и настройки из профиля (MatchService вызывает при создании матча)
+function Match:ApplyProfile(player: Player, profile: any)
+	local state = self.PlayerState[player.UserId]
+	if state and profile then
+		state.Loadout = table.clone(profile.loadout)
+		state.AutoSkip = profile.settings.autoSkip == true
+		self:MarkDirty()
+	end
+end
+
+function Match:SetAutoSkip(player: Player, enabled: boolean)
+	local state = self.PlayerState[player.UserId]
+	if state then
+		state.AutoSkip = enabled
+		self:MarkDirty()
+	end
+end
+
+-- Авто-скип: если каждый игрок либо проголосовал за пропуск, либо включил авто-скип,
+-- ожидание заканчивается само. В подготовке авто-скип ждёт, пока игрок поставит
+-- первую башню; в перерыве — 1.5 сек., чтобы было видно, что волна пройдена.
+local AUTO_SKIP_DELAY = 1.5
+function Match:CheckAutoSkip()
+	local waves = self.Waves
+	local phase = waves.Phase
+	if phase ~= "Prep" and phase ~= "Intermission" or #self.Players == 0 then
+		return
+	end
+	local total = if phase == "Prep" then Game.Match.PrepTime else Game.Match.Intermission
+	if total - waves.Timer < AUTO_SKIP_DELAY then
+		return
+	end
+	local anyAuto = false
+	for _, player in self.Players do
+		local state = self.PlayerState[player.UserId]
+		local auto = state and state.AutoSkip and (phase == "Intermission" or state.TowersPlaced > 0)
+		if auto then
+			anyAuto = true
+		elseif not self.Votes.Skip[player.UserId] then
+			return
+		end
+	end
+	if anyAuto and waves:Skip() then
+		self:MarkDirty()
+	end
 end
 
 function Match:RemovePlayer(player: Player)
@@ -170,7 +219,7 @@ function Match:DamageBase(amount: number, source: string)
 	self:Fx({ k = "leak", n = amount })
 	self:MarkDirty()
 	if self.BaseHealth <= 0 then
-		self:Notify("💥 База разрушена (" .. source .. ")", "error")
+		self:Notify("💥 The base was destroyed (" .. source .. ")", "error")
 		self:Finish(false)
 	end
 end
@@ -188,7 +237,7 @@ function Match:RecountSpeed()
 	if scale ~= self.TimeScale then
 		self.TimeScale = scale
 		self.Enemies:Resync()
-		self:Notify(if scale == 2 then "⏩ Ускорение x2" else "▶ Обычная скорость", "info")
+		self:Notify(if scale == 2 then "⏩ Speed x2 enabled" else "▶ Normal speed", "info")
 	end
 end
 
@@ -208,7 +257,7 @@ function Match:Vote(player: Player, kind: string): (boolean, string?)
 		end
 		if count >= #self.Players and not self.Waves:Skip() then
 			votes[player.UserId] = nil
-			return false, "Сейчас нечего пропускать"
+			return false, "Nothing to skip right now"
 		end
 	end
 	self:MarkDirty()
@@ -236,7 +285,7 @@ function Match:Snapshot(): any
 		if state.Connected then
 			table.insert(team, {
 				userId = state.UserId, name = state.Name, cash = state.Cash, kills = state.Kills,
-				towers = self.Towers:CountFor(state.UserId),
+				towers = self.Towers:CountFor(state.UserId), autoSkip = state.AutoSkip, loadout = state.Loadout,
 			})
 		end
 	end
@@ -265,6 +314,7 @@ function Match:Snapshot(): any
 		baseHp = self.BaseHealth,
 		baseMaxHp = self.BaseMaxHealth,
 		enemies = self.Enemies:Count() + #self.Waves.Queue,
+		waveTotal = if self.Waves.Config then self.Waves.Config.Total else 0,
 		timeScale = self.TimeScale,
 		speedVotes = #speedBy,
 		skipVotes = #skipBy,
@@ -312,6 +362,7 @@ function Match:Tick(dt: number)
 	if self.Ended then
 		return
 	end
+	self:CheckAutoSkip()
 	self.Waves:Step(dt)
 	if self.Ended then
 		return

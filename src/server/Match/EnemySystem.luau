@@ -45,7 +45,7 @@ end
 function EnemySystem:Spawn(enemyId: string, wave: any, distance: number?): any?
 	local def = Enemies.ById[enemyId]
 	if not def then
-		warn("[EnemySystem] Неизвестный враг", enemyId)
+		warn("[EnemySystem] Unknown enemy", enemyId)
 		return nil
 	end
 	local match = self.Match
@@ -109,7 +109,7 @@ function EnemySystem:Spawn(enemyId: string, wave: any, distance: number?): any?
 	self.ByUid[uid] = enemy
 	if def.Boss then
 		match:Fx({ k = "boss", name = def.Name })
-		match:Notify("👑 Босс: " .. def.Name .. "!", "boss")
+		match:Notify("👑 Boss incoming: " .. def.Name .. "!", "boss")
 	end
 	return enemy
 end
@@ -168,7 +168,7 @@ function EnemySystem:Kill(enemy: any, tower: any?)
 	match:AddKill(if tower then tower.OwnerId else 0)
 	enemy.Model:SetAttribute("Dead", true)
 	enemy.Model:SetAttribute("Health", 0)
-	match:Fx({ k = "death", e = enemy.Uid, boss = enemy.Def.Boss == true })
+	match:Fx({ k = "death", e = enemy.Uid, boss = enemy.Def.Boss == true, r = reward })
 	self:Detach(enemy)
 	table.insert(self.Removing, { Enemy = enemy, At = match.Time + 0.8 })
 end
@@ -247,7 +247,7 @@ local function abilities(self: any, enemy: any, dt: number)
 				state.Fired[1] = true
 				enemy.EnrageMult = def.Amount
 				match:Fx({ k = "enrage", e = enemy.Uid })
-				match:Notify("🔥 " .. enemy.Def.Name .. " в ярости!", "boss")
+				match:Notify("🔥 " .. enemy.Def.Name .. " is enraged!", "boss")
 			end
 		end
 	end

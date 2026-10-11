@@ -5,7 +5,7 @@
 
 local Game = {}
 
-Game.DataVersion = 1
+Game.DataVersion = 2
 Game.AutosaveInterval = 120
 
 Game.Lobby = {

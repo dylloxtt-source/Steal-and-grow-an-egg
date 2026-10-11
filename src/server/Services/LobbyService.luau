@@ -178,8 +178,8 @@ local function buildInfoBoard()
 	end
 	local board = block(Vector3.new(12, 7, 0.5), cf * CFrame.new(0, 7, 0), Color3.fromRGB(28, 30, 40), { CanCollide = true })
 	local gui = surface(board, Enum.NormalId.Back, 36)
-	label(gui, "КАК ИГРАТЬ", UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.16), Color3.fromRGB(255, 200, 70), true)
-	local body = label(gui, "1. Зайди в любой из 4 лифтов\n2. Лидер выбирает карту и размер команды (1–4)\n3. Нажми «Готов» или дождись таймера\n4. Ставь башни (клавиши 1–8), улучшай и продавай\n5. Защити базу 30 волн — получи гемы",
+	label(gui, "HOW TO PLAY", UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.16), Color3.fromRGB(255, 200, 70), true)
+	local body = label(gui, "1. Step into any of the 4 elevators\n2. The leader picks a map and party size (1–4)\n3. Press Ready or wait for the timer\n4. Place towers (keys 1–5), upgrade and sell\n5. Survive 30 waves and earn gems\n6. Spend gems on new towers in the Tower Shop",
 		UDim2.fromScale(0.05, 0.22), UDim2.fromScale(0.9, 0.74))
 	body.TextXAlignment = Enum.TextXAlignment.Left
 	body.TextYAlignment = Enum.TextYAlignment.Top
@@ -197,15 +197,15 @@ local function buildCollection()
 	Parts.Wedge(folder, Vector3.new(19, 3, 7), cf * CFrame.new(0, 10.5, -3.5) * A(0, math.pi, 0), Color3.fromRGB(60, 120, 220))
 	local sign = block(Vector3.new(14, 2.4, 0.4), cf * CFrame.new(0, 8, 6.3), Color3.fromRGB(28, 30, 40))
 	local gui = surface(sign, Enum.NormalId.Back, 36)
-	label(gui, "TOWER COLLECTION", UDim2.fromScale(0.03, 0.1), UDim2.fromScale(0.94, 0.8), Color3.fromRGB(120, 210, 255), true)
+	label(gui, "TOWER SHOP", UDim2.fromScale(0.03, 0.1), UDim2.fromScale(0.94, 0.8), Color3.fromRGB(120, 210, 255), true)
 	local counter = block(Vector3.new(6, 3, 1.5), cf * CFrame.new(0, 1.5, 2), Color3.fromRGB(70, 76, 92), { CanCollide = true })
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Открыть"
-	prompt.ObjectText = "Коллекция башен"
+	prompt.ActionText = "Open"
+	prompt.ObjectText = "Tower Shop"
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
-	prompt:SetAttribute("ClientAction", "OpenCollection")
+	prompt:SetAttribute("ClientAction", "OpenShop")
 	prompt.Parent = counter
 	-- Витрина: все восемь башен на постаментах
 	for i, tower in Towers.List do
@@ -236,7 +236,16 @@ local function buildShopPlaceholder()
 	end
 	local sign = block(Vector3.new(9, 1.8, 0.3), cf * CFrame.new(0, 8.5, 2.8), Color3.fromRGB(28, 30, 40))
 	local gui = surface(sign, Enum.NormalId.Back, 36)
-	label(gui, "SHOP • СКОРО", UDim2.fromScale(0.03, 0.1), UDim2.fromScale(0.94, 0.8), Color3.fromRGB(255, 200, 70), true)
+	label(gui, "LOADOUT", UDim2.fromScale(0.03, 0.1), UDim2.fromScale(0.94, 0.8), Color3.fromRGB(255, 200, 70), true)
+	local counter = block(Vector3.new(8, 3, 1.5), cf * CFrame.new(0, 1.5, 2.6), Color3.fromRGB(70, 76, 92), { CanCollide = true })
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Edit"
+	prompt.ObjectText = "Tower Loadout"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt:SetAttribute("ClientAction", "OpenLoadout")
+	prompt.Parent = counter
 end
 
 local function buildDecor()

@@ -130,7 +130,7 @@ local function userDummy(): Model?
 	end
 	for _, name in { "HumanoidRootPart", "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" } do
 		if not dummy:FindFirstChild(name) then
-			warn("[R6] Assets.R6Dummy не похож на R6 (нет " .. name .. "), используется встроенный риг")
+			warn("[R6] Assets.R6Dummy is not a valid R6 rig (missing " .. name .. "), using the built-in rig")
 			return nil
 		end
 	end

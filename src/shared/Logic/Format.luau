@@ -23,16 +23,22 @@ function Format.Number(n: number): string
 	return (if negative then "-" else "") .. text
 end
 
--- Деньги матча показываются точно (до 100 000), чтобы было видно, хватает ли на покупку
-function Format.Cash(n: number): string
-	if math.abs(n) >= 100000 then
-		return "$" .. Format.Number(n)
-	end
+-- Целое число с разделителями тысяч: 1340 → "1,340"
+function Format.Thousands(n: number): string
 	local text = tostring(math.floor(math.abs(n)))
 	local grouped = string.reverse((string.gsub(string.reverse(text), "(%d%d%d)", "%1,")))
 	if string.sub(grouped, 1, 1) == "," then
 		grouped = string.sub(grouped, 2)
 	end
+	return (if n < 0 then "-" else "") .. grouped
+end
+
+-- Деньги матча показываются точно (до 100 000), чтобы было видно, хватает ли на покупку
+function Format.Cash(n: number): string
+	if math.abs(n) >= 100000 then
+		return "$" .. Format.Number(n)
+	end
+	local grouped = Format.Thousands(math.abs(n))
 	return (if n < 0 then "-$" else "$") .. grouped
 end
 

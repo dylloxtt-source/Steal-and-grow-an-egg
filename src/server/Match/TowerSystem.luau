@@ -74,6 +74,7 @@ function TowerSystem:BuildModel(tower: any, cframe: CFrame)
 	model:PivotTo(cframe)
 	model:SetAttribute("Uid", tower.Uid)
 	model:SetAttribute("OwnerId", tower.OwnerId)
+	model:SetAttribute("OwnerName", tower.OwnerName)
 	model:SetAttribute("Priority", tower.Priority)
 	model:SetAttribute("MatchId", self.Match.Id)
 	model:SetAttribute("Spent", tower.Spent)
@@ -88,21 +89,24 @@ function TowerSystem:Place(player: Player, towerId: string, x: number, z: number
 	local match = self.Match
 	local def = Towers.ById[towerId]
 	if not def then
-		return false, "Неизвестная башня"
+		return false, "Unknown tower"
 	end
 	if match.Ended then
-		return false, "Матч окончен"
+		return false, "The match is over"
 	end
 	local state = match.PlayerState[player.UserId]
 	if not state then
-		return false, "Ты не в этом матче"
+		return false, "You are not in this match"
+	end
+	if state.Loadout and not table.find(state.Loadout, towerId) then
+		return false, def.Name .. " is not in your loadout"
 	end
 	if self:CountFor(player.UserId) >= Economy.TowerLimit then
-		return false, string.format("Лимит башен: %d", Economy.TowerLimit)
+		return false, string.format("Tower limit reached (%d)", Economy.TowerLimit)
 	end
 	local cost = def.Levels[1].Cost
 	if state.Cash < cost then
-		return false, "Недостаточно денег"
+		return false, "Not enough cash"
 	end
 	local ok, reason = Placement.Check(match.MapId, x, z, self:Footprints())
 	if not ok then
@@ -141,14 +145,14 @@ end
 
 local function owned(self: any, player: Player, uid: any): (any?, string?)
 	if type(uid) ~= "number" then
-		return nil, "Неверная башня"
+		return nil, "Invalid tower"
 	end
 	local tower = self.ByUid[uid]
 	if not tower then
-		return nil, "Башня не найдена"
+		return nil, "Tower not found"
 	end
 	if tower.OwnerId ~= player.UserId then
-		return nil, "Это не твоя башня"
+		return nil, "That tower belongs to another player"
 	end
 	return tower, nil
 end
@@ -159,12 +163,12 @@ function TowerSystem:Upgrade(player: Player, uid: any): (boolean, string?)
 		return false, err
 	end
 	if tower.Level >= #tower.Def.Levels then
-		return false, "Максимальный уровень"
+		return false, "Max level reached"
 	end
 	local state = self.Match.PlayerState[player.UserId]
 	local nextStats = tower.Def.Levels[tower.Level + 1]
 	if not state or state.Cash < nextStats.Cost then
-		return false, "Недостаточно денег"
+		return false, "Not enough cash"
 	end
 	state.Cash -= nextStats.Cost
 	tower.Level += 1
@@ -210,7 +214,7 @@ function TowerSystem:SetPriority(player: Player, uid: any, priority: any): (bool
 		return false, err
 	end
 	if type(priority) ~= "string" or not table.find(Towers.Priorities, priority) then
-		return false, "Неверный приоритет"
+		return false, "Invalid target priority"
 	end
 	tower.Priority = priority
 	tower.Model:SetAttribute("Priority", priority)

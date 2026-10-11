@@ -11,12 +11,12 @@ local MapLayout = require(script.Parent.MapLayout)
 local Placement = {}
 
 Placement.Reasons = {
-	Bounds = "За пределами поля",
-	Path = "Нельзя ставить на дорогу",
-	Blocked = "Мешает препятствие",
-	Water = "Здесь вода или лёд",
-	Tower = "Слишком близко к другой башне",
-	Base = "Слишком близко к базе или порталу",
+	Bounds = "Outside the play area",
+	Path = "Can't place on the path",
+	Blocked = "Blocked by an obstacle",
+	Water = "Can't place on water or ice",
+	Tower = "Too close to another tower",
+	Base = "Too close to the base or portal",
 }
 
 -- towers: список { X, Z } уже стоящих башен (локальные координаты карты)

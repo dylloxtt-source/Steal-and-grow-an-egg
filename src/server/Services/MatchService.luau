@@ -53,19 +53,19 @@ end
 
 function MatchService:Create(players: { Player }, mapId: string): (any?, string?)
 	if not Maps.ById[mapId] then
-		return nil, "Неизвестная карта"
+		return nil, "Unknown map"
 	end
 	if #players < 1 or #players > Game.Elevator.MaxCapacity then
-		return nil, "Неверный размер группы"
+		return nil, "Invalid party size"
 	end
 	for _, player in players do
 		if player:GetAttribute("MatchId") then
-			return nil, player.DisplayName .. " уже в матче"
+			return nil, player.DisplayName .. " is already in a match"
 		end
 	end
 	local slot = freeSlot()
 	if not slot then
-		return nil, "Все арены заняты — попробуй через минуту"
+		return nil, "All arenas are busy — try again in a minute"
 	end
 	local id = nextId
 	nextId += 1
@@ -76,11 +76,15 @@ function MatchService:Create(players: { Player }, mapId: string): (any?, string?
 	slots[slot] = id
 	MatchService.Matches[id] = match
 	for _, player in players do
+		local session = services.DataService:GetSession(player)
+		if session then
+			match:ApplyProfile(player, session.Profile)
+		end
 		player:SetAttribute("MatchId", id)
 		player:SetAttribute("MapId", mapId)
 		teleport(player, match:SpawnCFrame())
 	end
-	match:Notify("🗺 " .. match.Map.Name .. " • подготовка " .. Game.Match.PrepTime .. " сек.", "info")
+	match:Notify("🗺 " .. match.Map.Name .. " • prepare your defense: " .. Game.Match.PrepTime .. "s", "info")
 	match:Broadcast()
 	return match, nil
 end
@@ -213,7 +217,7 @@ function MatchService:Start()
 	local function current(player: Player): (any?, string?)
 		local match = MatchService:MatchOf(player)
 		if not match or match.Closed then
-			return nil, "Ты не в матче"
+			return nil, "You are not in a match"
 		end
 		return match, nil
 	end
@@ -221,7 +225,7 @@ function MatchService:Start()
 	NetService:Handle("PlaceTower", function(player, _session, payload)
 		if not Check.Table(payload) or not Check.String(payload.tower, 24) or not Towers.ById[payload.tower]
 			or not Check.Number(payload.x, -500, 500) or not Check.Number(payload.z, -500, 500) then
-			return false, "Неверный запрос"
+			return false, "Invalid request"
 		end
 		local match, err = current(player)
 		if not match then
@@ -236,10 +240,10 @@ function MatchService:Start()
 			return false, err
 		end
 		if not Check.Table(payload) then
-			return false, "Неверный запрос"
+			return false, "Invalid request"
 		end
 		if match.Ended then
-			return false, "Матч окончен"
+			return false, "The match is over"
 		end
 		return match.Towers:Upgrade(player, payload.uid)
 	end)
@@ -250,10 +254,10 @@ function MatchService:Start()
 			return false, err
 		end
 		if not Check.Table(payload) then
-			return false, "Неверный запрос"
+			return false, "Invalid request"
 		end
 		if match.Ended then
-			return false, "Матч окончен"
+			return false, "The match is over"
 		end
 		return match.Towers:Sell(player, payload.uid)
 	end)
@@ -264,7 +268,7 @@ function MatchService:Start()
 			return false, err
 		end
 		if not Check.Table(payload) then
-			return false, "Неверный запрос"
+			return false, "Invalid request"
 		end
 		return match.Towers:SetPriority(player, payload.uid, payload.priority)
 	end)
@@ -272,7 +276,7 @@ function MatchService:Start()
 	NetService:Handle("VoteSpeed", function(player)
 		local match, err = current(player)
 		if not match or match.Ended then
-			return false, err or "Матч окончен"
+			return false, err or "The match is over"
 		end
 		return match:Vote(player, "Speed")
 	end)
@@ -280,7 +284,7 @@ function MatchService:Start()
 	NetService:Handle("VoteSkip", function(player)
 		local match, err = current(player)
 		if not match or match.Ended then
-			return false, err or "Матч окончен"
+			return false, err or "The match is over"
 		end
 		return match:Vote(player, "Skip")
 	end)
@@ -288,10 +292,10 @@ function MatchService:Start()
 	NetService:Handle("ReturnToLobby", function(player)
 		local match = MatchService:MatchOf(player)
 		if not match then
-			return false, "Ты не в матче"
+			return false, "You are not in a match"
 		end
 		if not match.Ended then
-			return false, "Матч ещё идёт"
+			return false, "The match is still running"
 		end
 		MatchService:ReturnPlayer(match, player)
 		return true, nil

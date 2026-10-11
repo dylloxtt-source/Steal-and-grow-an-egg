@@ -12,7 +12,9 @@ local Vector3 = roblox.Vector3
 
 local playerCount = tonumber(process.args[1]) or 1
 local onlyMap = process.args[2]
-local verbose = process.args[3] == "v"
+local verbose = process.args[3] == "v" or process.args[4] == "v"
+-- starter — новичок: только стартовый мечник (как у нового игрока до покупок в магазине)
+local starter = process.args[3] == "starter"
 
 local server = Engine.Realm(true)
 server.require(Engine.ServerNode)
@@ -33,6 +35,9 @@ end
 task.wait(0.3)
 
 local ORDER = { "archer", "swordsman", "archer", "toxic", "pistol", "sniper", "minigunner", "lumberjack", "wolverine", "sniper", "toxic", "minigunner" }
+if starter then
+	ORDER = { "swordsman" }
+end
 
 local function spots(mapId: string, range: number)
 	local layout = MapLayout.Get(mapId)
@@ -66,6 +71,11 @@ end
 local function run(mapId: string)
 	local match = MatchService:Create(players, mapId)
 	assert(match, "match not created")
+	if not starter then
+		for _, player in players do
+			match.PlayerState[player.UserId].Loadout = nil -- бот проверяет баланс всех башен
+		end
+	end
 	if verbose then
 		local original = match.Enemies.Leak
 		match.Enemies.Leak = function(self, enemy)

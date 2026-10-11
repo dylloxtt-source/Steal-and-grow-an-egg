@@ -79,19 +79,19 @@ function NetService:Start()
 	local action = Net.ActionFunction()
 	action.OnServerInvoke = function(player: Player, name: any, payload: any)
 		if type(name) ~= "string" or not handlers[name] then
-			return { ok = false, message = "Неизвестное действие" }
+			return { ok = false, message = "Unknown action" }
 		end
 		if not allow(player, name) then
-			return { ok = false, message = "Слишком часто" }
+			return { ok = false, message = "Slow down!" }
 		end
 		local session = services.DataService:GetSession(player)
 		if not session then
-			return { ok = false, message = "Загрузка..." }
+			return { ok = false, message = "Loading..." }
 		end
 		local ok, success, message, data = pcall(handlers[name], player, session, payload)
 		if not ok then
-			warn(string.format("[NetService] %s от %s: %s", name, player.Name, tostring(success)))
-			return { ok = false, message = "Ошибка сервера" }
+			warn(string.format("[NetService] %s from %s: %s", name, player.Name, tostring(success)))
+			return { ok = false, message = "Server error" }
 		end
 		return { ok = success == true, message = message, data = data }
 	end

@@ -179,11 +179,11 @@ local function update()
 	local ok, reason = Placement.Check(mapId, x, z, PlacementController.Footprints(folder, origin))
 	local cost = current.Def.Levels[1].Cost
 	if ok and State.Cash() < cost then
-		ok, reason = false, "Недостаточно денег"
+		ok, reason = false, "Not enough cash"
 	end
 	local match = State.Match
 	if ok and match and PlacementController.MyTowerCount(folder) >= (match.towerLimit or 15) then
-		ok, reason = false, "Достигнут лимит башен"
+		ok, reason = false, "Tower limit reached"
 	end
 	local changed = ok ~= current.Valid or reason ~= current.Reason
 	current.Valid, current.Reason = ok, reason
