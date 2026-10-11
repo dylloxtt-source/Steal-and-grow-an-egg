@@ -87,7 +87,15 @@ Full source · thumbnail + icon · step-by-step setup guide (Rojo → Studio)
 | `thumbnail.png` | 1920×1080 | тумбнейл игры на Roblox, картинка к посту |
 | `icon.png` | 512×512 | иконка игры на Roblox |
 
-Картинки нарисованы скриптами из настоящих моделей и карты игры (Greenfield):
-`lune run tools/marketing/scene.luau out && node tools/marketing/thumbnail.js out <шрифт Fredoka One .ttf>`.
-Это упрощённый рендер (без освещения и материалов Roblox). Для поста лучше добавить пару
-настоящих скриншотов или короткое видео из Studio.
+Картинки — настоящий 3D-рендер (three.js в Chromium) тех же моделей башен, врагов и карты Snow Valley,
+что строит игра: позы, оружие, студы и цвета — из кода игры. Ночное освещение, северное сияние, туман,
+снег и вспышки выстрелов добавлены для обложки: в самой игре Snow Valley дневная, а свет и материалы
+Roblox выглядят иначе. Для поста стоит добавить пару настоящих скриншотов или короткое видео из Studio.
+
+Пересобрать:
+
+```
+npm i three@0.170.0                        # в любой папке
+lune run tools/marketing/scene.luau out    # сцена из моделей игры → out/scene.json
+node tools/marketing/render.js out <Fredoka One .ttf> <папка>/node_modules/three
+```
