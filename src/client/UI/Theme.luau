@@ -1,51 +1,50 @@
 --[[
-	Визуальная система UI по референсам: толстые чёрные обводки, шрифт Fredoka One,
-	насыщенные кнопки с «нижней гранью», тёмные панели со студами и зелёной шапкой.
+	Визуальная система интерфейса: тёмные панели, контрастные акценты,
+	шрифт Montserrat (поддерживает кириллицу), мягкие обводки и градиенты.
 ]]
 
 local Theme = {}
 
-Theme.Font = Enum.Font.FredokaOne
--- В Fredoka One нет кириллицы: русский текст рисуем округлым Nunito Heavy
-Theme.CyrillicFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
-
-Theme.Colors = {
-	Green = Color3.fromRGB(92, 227, 92),
-	GreenDark = Color3.fromRGB(40, 150, 40),
-	Blue = Color3.fromRGB(46, 168, 255),
-	BlueDark = Color3.fromRGB(20, 100, 190),
-	Red = Color3.fromRGB(229, 48, 43),
-	RedDark = Color3.fromRGB(150, 20, 20),
-	Orange = Color3.fromRGB(255, 150, 30),
-	OrangeDark = Color3.fromRGB(190, 90, 10),
-	Yellow = Color3.fromRGB(255, 210, 31),
-	YellowDark = Color3.fromRGB(190, 140, 0),
-	Purple = Color3.fromRGB(150, 70, 230),
-	PurpleDark = Color3.fromRGB(80, 30, 150),
-	Pink = Color3.fromRGB(240, 70, 200),
-	Grey = Color3.fromRGB(130, 130, 140),
-	GreyDark = Color3.fromRGB(80, 80, 90),
-	Panel = Color3.fromRGB(46, 46, 54),
-	PanelStud = Color3.fromRGB(62, 62, 72),
-	PanelInner = Color3.fromRGB(34, 34, 40),
-	Black = Color3.fromRGB(16, 16, 20),
-	White = Color3.fromRGB(255, 255, 255),
-	Money = Color3.fromRGB(110, 255, 90),
-	MoneyDark = Color3.fromRGB(30, 160, 30),
+Theme.Font = {
+	Regular = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Medium),
+	Semi = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.SemiBold),
+	Bold = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Bold),
+	Heavy = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.ExtraBold),
 }
 
-Theme.Stroke = 3
-Theme.Radius = 8
+Theme.Colors = {
+	Background = Color3.fromRGB(18, 20, 27),
+	Panel = Color3.fromRGB(26, 29, 38),
+	PanelLight = Color3.fromRGB(36, 40, 52),
+	PanelLighter = Color3.fromRGB(48, 53, 68),
+	Stroke = Color3.fromRGB(255, 255, 255),
+	Text = Color3.fromRGB(240, 242, 248),
+	SubText = Color3.fromRGB(160, 168, 186),
+	Muted = Color3.fromRGB(105, 112, 130),
+	Accent = Color3.fromRGB(76, 201, 240),
+	AccentDark = Color3.fromRGB(40, 140, 190),
+	Gold = Color3.fromRGB(255, 200, 87),
+	Gem = Color3.fromRGB(170, 120, 255),
+	Green = Color3.fromRGB(74, 222, 128),
+	GreenDark = Color3.fromRGB(34, 160, 90),
+	Red = Color3.fromRGB(255, 89, 100),
+	RedDark = Color3.fromRGB(190, 50, 60),
+	Orange = Color3.fromRGB(255, 150, 60),
+	Purple = Color3.fromRGB(160, 110, 255),
+	Black = Color3.fromRGB(0, 0, 0),
+	White = Color3.fromRGB(255, 255, 255),
+}
 
--- Пары цветов кнопок: основной и цвет нижней грани
+Theme.Radius = 12
+Theme.Padding = 12
+
 Theme.Buttons = {
-	Green = { Theme.Colors.Green, Theme.Colors.GreenDark },
-	Blue = { Theme.Colors.Blue, Theme.Colors.BlueDark },
-	Red = { Theme.Colors.Red, Theme.Colors.RedDark },
-	Orange = { Theme.Colors.Orange, Theme.Colors.OrangeDark },
-	Yellow = { Theme.Colors.Yellow, Theme.Colors.YellowDark },
-	Purple = { Theme.Colors.Purple, Theme.Colors.PurpleDark },
-	Grey = { Theme.Colors.Grey, Theme.Colors.GreyDark },
+	Primary = { Theme.Colors.Accent, Theme.Colors.AccentDark, Theme.Colors.Background },
+	Success = { Theme.Colors.Green, Theme.Colors.GreenDark, Theme.Colors.Background },
+	Danger = { Theme.Colors.Red, Theme.Colors.RedDark, Theme.Colors.White },
+	Gold = { Theme.Colors.Gold, Color3.fromRGB(200, 150, 50), Theme.Colors.Background },
+	Neutral = { Theme.Colors.PanelLighter, Theme.Colors.PanelLight, Theme.Colors.Text },
+	Disabled = { Color3.fromRGB(60, 64, 78), Color3.fromRGB(50, 54, 66), Theme.Colors.Muted },
 }
 
 return Theme

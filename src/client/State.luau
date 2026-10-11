@@ -1,9 +1,9 @@
 --[[
-	Клиентское состояние: последний снимок профиля от сервера + обёртка для действий.
-	UI только читает State.View и отправляет запросы; все расчёты значимых
-	величин делает сервер.
+	Клиентское состояние: снимки от сервера (лобби, матч, профиль) и обёртка запросов.
+	Клиент ничего не решает сам — только показывает и отправляет намерения.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -11,32 +11,89 @@ local Net = require(Shared.Net)
 
 local State = {}
 
-State.View = nil :: any
-State.Changed = Instance.new("BindableEvent")
-State.Notify = Instance.new("BindableEvent") -- (text, kind) — локальные уведомления
+State.Lobby = {} :: { any } -- лифты
+State.Match = nil :: any -- снимок матча
+State.Profile = nil :: any
+State.MemoryMode = false
+State.Results = nil :: any
 
-local actionFunction: RemoteFunction
+State.LobbyChanged = Instance.new("BindableEvent")
+State.MatchChanged = Instance.new("BindableEvent")
+State.ProfileChanged = Instance.new("BindableEvent")
+State.Fx = Instance.new("BindableEvent")
+State.Ended = Instance.new("BindableEvent")
+State.Notify = Instance.new("BindableEvent")
+
+local action: RemoteFunction
 
 function State.Init()
-	actionFunction = Net.ActionFunction()
-	Net.Event("State").OnClientEvent:Connect(function(view)
-		State.View = view
-		State.Changed:Fire(view)
+	action = Net.ActionFunction()
+	Net.Event("LobbyState").OnClientEvent:Connect(function(elevators)
+		State.Lobby = elevators
+		State.LobbyChanged:Fire(elevators)
+	end)
+	Net.Event("MatchState").OnClientEvent:Connect(function(snapshot)
+		State.Match = snapshot
+		State.MatchChanged:Fire(snapshot)
+	end)
+	Net.Event("MatchFx").OnClientEvent:Connect(function(batch)
+		if type(batch) == "table" then
+			for _, entry in batch do
+				State.Fx:Fire(entry)
+			end
+		end
+	end)
+	Net.Event("MatchEnded").OnClientEvent:Connect(function(results)
+		State.Results = results
+		State.Ended:Fire(results)
+	end)
+	Net.Event("Profile").OnClientEvent:Connect(function(view)
+		State.Profile = view.profile
+		State.MemoryMode = view.memoryMode == true
+		State.ProfileChanged:Fire(State.Profile)
+	end)
+	Net.Event("Notify").OnClientEvent:Connect(function(text, kind)
+		State.Notify:Fire(text, kind)
 	end)
 end
 
-function State.Profile(): any
-	return State.View and State.View.profile
+function State.InMatch(): boolean
+	return Players.LocalPlayer:GetAttribute("MatchId") ~= nil
 end
 
-function State.Runtime(): any
-	return State.View and State.View.runtime or {}
+function State.MyElevator(): any?
+	local userId = Players.LocalPlayer.UserId
+	for _, elevator in State.Lobby do
+		for _, member in elevator.members do
+			if member.userId == userId then
+				return elevator
+			end
+		end
+	end
+	return nil
 end
 
--- Отправляет действие на сервер. Ошибку показывает уведомлением.
+function State.MyTeamEntry(): any?
+	local match = State.Match
+	if not match then
+		return nil
+	end
+	for _, entry in match.team do
+		if entry.userId == Players.LocalPlayer.UserId then
+			return entry
+		end
+	end
+	return nil
+end
+
+function State.Cash(): number
+	local entry = State.MyTeamEntry()
+	return entry and entry.cash or 0
+end
+
 function State.Action(name: string, payload: any?): (boolean, any?)
 	local ok, result = pcall(function()
-		return actionFunction:InvokeServer(name, payload)
+		return action:InvokeServer(name, payload)
 	end)
 	if not ok or type(result) ~= "table" then
 		State.Notify:Fire("Нет связи с сервером", "error")
@@ -48,7 +105,6 @@ function State.Action(name: string, payload: any?): (boolean, any?)
 	return result.ok == true, result.data
 end
 
--- Асинхронный вариант для кнопок (не блокирует UI)
 function State.Fire(name: string, payload: any?, onDone: ((boolean, any?) -> ())?)
 	task.spawn(function()
 		local ok, data = State.Action(name, payload)

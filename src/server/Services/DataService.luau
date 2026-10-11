@@ -1,13 +1,13 @@
 --[[
-	DataService — загрузка/сохранение профилей и сессии игроков.
+	DataService — постоянный прогресс (гемы, уровень, статистика, открытые башни).
+	Состояние матча сюда не пишется.
 
-	• DataStore + UpdateAsync с «замком сессии» (jobId + время), чтобы два сервера
-	  не писали один профиль одновременно (защита от дюпа при быстром перезаходе).
-	• Автосохранение раз в Game.AutosaveInterval, сохранение при выходе и BindToClose.
-	• Если DataStore недоступен в Studio (выключен доступ к API) — режим памяти:
-	  игра работает, но прогресс не сохраняется (игрок получает предупреждение).
-	• Если DataStore недоступен на живом сервере — игрок кикается с просьбой
-	  перезайти, чтобы не перезаписать его прогресс пустым профилем.
+	• UpdateAsync с замком сессии (jobId + время): второй сервер не перезапишет профиль.
+	• Автосохранение, сохранение при выходе и в BindToClose, повторы при ошибках.
+	• Studio без доступа к API → режим памяти: игрок видит предупреждение
+	  «прогресс не сохраняется» (никаких ложных сообщений об успешном сохранении).
+	• Живой сервер без DataStore → игрок кикается с просьбой перезайти,
+	  чтобы не затереть прогресс пустым профилем.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -20,7 +20,7 @@ local Game = require(Shared.Config.Game)
 local Profile = require(Shared.Logic.Profile)
 local Net = require(Shared.Net)
 
-local STORE_NAME = "SGAE_Players_v1"
+local STORE_NAME = "R6TD_Players_v1"
 local LOCK_TIMEOUT = 600
 local LOAD_RETRIES = 5
 
@@ -28,15 +28,14 @@ local DataService = {}
 DataService.Sessions = {} :: { [Player]: any }
 DataService.MemoryMode = false
 
-local store: DataStore? = nil
+local store: any = nil
 local loadedCallbacks: { (Player, any) -> () } = {}
 local removingCallbacks: { (Player, any) -> () } = {}
-local viewContributors: { (any, any) -> () } = {}
-local stateEvent: RemoteEvent
+local profileEvent: RemoteEvent
 local notifyEvent: RemoteEvent
 
 local function keyFor(userId: number): string
-	return "u_" .. tostring(userId)
+	return "p_" .. tostring(userId)
 end
 
 local function isApiAccessError(err: any): boolean
@@ -47,7 +46,7 @@ local function isApiAccessError(err: any): boolean
 end
 
 function DataService:Init(_registry)
-	stateEvent = Net.Event("State")
+	profileEvent = Net.Event("Profile")
 	notifyEvent = Net.Event("Notify")
 	local ok, result = pcall(function()
 		return DataStoreService:GetDataStore(STORE_NAME)
@@ -68,44 +67,25 @@ function DataService:OnRemoving(callback: (Player, any) -> ())
 	table.insert(removingCallbacks, callback)
 end
 
--- Сервисы добавляют в снимок для клиента свои поля (runtime-состояние)
-function DataService:AddViewContributor(callback: (any, any) -> ())
-	table.insert(viewContributors, callback)
-end
-
 function DataService:GetSession(player: Player): any?
 	local session = DataService.Sessions[player]
-	if session and session.Loaded then
+	if session and session.Loaded and not session.Released then
 		return session
 	end
 	return nil
 end
 
 function DataService:Notify(player: Player, text: string, kind: string?)
-	notifyEvent:FireClient(player, text, kind or "info")
+	if player.Parent then
+		notifyEvent:FireClient(player, text, kind or "info")
+	end
 end
 
--- Отложенная (склеенная) отправка состояния клиенту
-function DataService:MarkDirty(player: Player)
-	local session = DataService.Sessions[player]
-	if not session or not session.Loaded or session.SyncQueued then
-		return
+function DataService:SendProfile(player: Player)
+	local session = DataService:GetSession(player)
+	if session then
+		profileEvent:FireClient(player, { profile = session.Profile, memoryMode = DataService.MemoryMode })
 	end
-	session.SyncQueued = true
-	task.delay(0.12, function()
-		session.SyncQueued = false
-		if DataService.Sessions[player] == session and player.Parent then
-			local view = { profile = session.Profile, runtime = {} }
-			for _, contributor in viewContributors do
-				local ok, err = pcall(contributor, session, view.runtime)
-				if not ok then
-					warn("[DataService] view contributor error:", err)
-				end
-			end
-			view.runtime.serverTime = os.time()
-			stateEvent:FireClient(player, view)
-		end
-	end)
 end
 
 local function loadProfile(player: Player): (boolean, any?)
@@ -116,28 +96,23 @@ local function loadProfile(player: Player): (boolean, any?)
 	for attempt = 1, LOAD_RETRIES do
 		local lockedByOther = false
 		local ok, result = pcall(function()
-			return (store :: DataStore):UpdateAsync(key, function(old)
-				local data = old
-				if type(data) == "table" and type(data.lock) == "table" then
-					local lock = data.lock
-					if lock.jobId ~= game.JobId and os.time() - (tonumber(lock.time) or 0) < LOCK_TIMEOUT
-						and attempt < LOAD_RETRIES then
-						lockedByOther = true
-						return nil -- отменяем запись, подождём освобождения
-					end
+			return store:UpdateAsync(key, function(old)
+				if type(old) == "table" and type(old.lock) == "table" and old.lock.jobId ~= game.JobId
+					and os.time() - (tonumber(old.lock.time) or 0) < LOCK_TIMEOUT and attempt < LOAD_RETRIES then
+					lockedByOther = true
+					return nil
 				end
-				data = Profile.Reconcile(data)
+				local data = Profile.Reconcile(old)
 				data.lock = { jobId = game.JobId, time = os.time() }
 				return data
 			end)
 		end)
-		if ok and not lockedByOther and result then
+		if ok and result and not lockedByOther then
 			return true, result
 		end
 		if not ok then
 			if RunService:IsStudio() and isApiAccessError(result) then
-				warn("[DataService] Нет доступа к API в Studio — включите Game Settings > Security > "
-					.. "Enable Studio Access to API Services. Прогресс не сохраняется.")
+				warn("[DataService] Studio: включите Game Settings > Security > Enable Studio Access to API Services. Прогресс НЕ сохраняется.")
 				DataService.MemoryMode = true
 				return true, Profile.Default()
 			end
@@ -153,29 +128,20 @@ end
 
 local function saveSession(session: any, release: boolean): boolean
 	if DataService.MemoryMode or not store then
-		return true
+		return false
 	end
-	if session.Saving then
-		-- Не запускаем параллельные записи одного профиля
-		while session.Saving do
-			task.wait(0.1)
-		end
-		if not release then
-			return true
-		end
+	while session.Saving do
+		task.wait(0.1)
 	end
 	session.Saving = true
 	local profile = session.Profile
-	profile.lastOnline = os.time()
-	local key = keyFor(session.UserId)
 	local success = false
 	for attempt = 1, 3 do
 		local ok, err = pcall(function()
-			(store :: DataStore):UpdateAsync(key, function(old)
+			store:UpdateAsync(keyFor(session.UserId), function(old)
 				if type(old) == "table" and type(old.lock) == "table" and old.lock.jobId ~= game.JobId
 					and os.time() - (tonumber(old.lock.time) or 0) < LOCK_TIMEOUT then
-					-- Профиль захвачен другим сервером — не перетираем
-					return nil
+					return nil -- профиль захвачен другим сервером
 				end
 				profile.lock = if release then nil else { jobId = game.JobId, time = os.time() }
 				return profile
@@ -193,24 +159,18 @@ local function saveSession(session: any, release: boolean): boolean
 end
 
 function DataService:SaveNow(player: Player)
-	local session = DataService.Sessions[player]
-	if session and session.Loaded then
+	local session = DataService:GetSession(player)
+	if session then
 		task.spawn(saveSession, session, false)
 	end
 end
 
 local function onPlayerAdded(player: Player)
-	local session = {
-		Player = player,
-		UserId = player.UserId,
-		Loaded = false,
-		JoinTime = os.clock(),
-	}
+	local session = { Player = player, UserId = player.UserId, Loaded = false }
 	DataService.Sessions[player] = session
-
 	local ok, profile = loadProfile(player)
 	if not player.Parent then
-		if ok and profile and not DataService.MemoryMode then
+		if ok and profile then
 			session.Profile = profile
 			saveSession(session, true)
 		end
@@ -218,49 +178,45 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	if not ok or not profile then
-		player:Kick("Не удалось загрузить сохранение. Пожалуйста, перезайдите через минуту.")
+		player:Kick("Не удалось загрузить прогресс. Пожалуйста, перезайдите через минуту.")
 		DataService.Sessions[player] = nil
 		return
 	end
-
 	session.Profile = profile
 	session.Loaded = true
 	for _, callback in loadedCallbacks do
 		local cbOk, err = pcall(callback, player, session)
 		if not cbOk then
-			warn("[DataService] OnLoaded error:", err)
+			warn("[DataService] OnLoaded:", err)
 		end
 	end
 	player:SetAttribute("Loaded", true)
-	DataService:MarkDirty(player)
+	DataService:SendProfile(player)
 	if DataService.MemoryMode then
-		DataService:Notify(player, "Studio: сохранения выключены (нет доступа к API)", "warn")
+		DataService:Notify(player, "Тестовый режим: прогресс не сохраняется (DataStore недоступен)", "warn")
 	end
+end
+
+local function release(player: Player, session: any)
+	if not session.Loaded or session.Released then
+		return
+	end
+	session.Released = true
+	for _, callback in removingCallbacks do
+		local ok, err = pcall(callback, player, session)
+		if not ok then
+			warn("[DataService] OnRemoving:", err)
+		end
+	end
+	saveSession(session, true)
 end
 
 local function onPlayerRemoving(player: Player)
 	local session = DataService.Sessions[player]
-	if not session then
-		return
+	if session then
+		release(player, session)
+		DataService.Sessions[player] = nil
 	end
-	if session.Loaded and not session.Released then
-		session.Released = true
-		for _, callback in removingCallbacks do
-			local ok, err = pcall(callback, player, session)
-			if not ok then
-				warn("[DataService] OnRemoving error:", err)
-			end
-		end
-		session.Profile.stats.playTime += os.clock() - session.JoinTime
-		session.JoinTime = os.clock()
-		saveSession(session, true)
-	end
-	DataService.Sessions[player] = nil
-end
-
--- Игровое время с учётом текущей сессии (для защиты новичков)
-function DataService:PlayTime(session: any): number
-	return session.Profile.stats.playTime + (os.clock() - session.JoinTime)
 end
 
 function DataService:Start()
@@ -269,34 +225,24 @@ function DataService:Start()
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
 	end
-
 	task.spawn(function()
 		while true do
 			task.wait(Game.AutosaveInterval)
 			for _, session in DataService.Sessions do
-				if session.Loaded then
-					session.Profile.stats.playTime += os.clock() - session.JoinTime
-					session.JoinTime = os.clock()
+				if session.Loaded and not session.Released then
 					task.spawn(saveSession, session, false)
 				end
 			end
 		end
 	end)
-
 	game:BindToClose(function()
 		local pending = 0
 		for player, session in DataService.Sessions do
-			if session.Loaded and not session.Released then
-				session.Released = true
-				pending += 1
-				task.spawn(function()
-					for _, callback in removingCallbacks do
-						pcall(callback, player, session)
-					end
-					saveSession(session, true)
-					pending -= 1
-				end)
-			end
+			pending += 1
+			task.spawn(function()
+				release(player, session)
+				pending -= 1
+			end)
 		end
 		local deadline = os.clock() + 25
 		while pending > 0 and os.clock() < deadline do

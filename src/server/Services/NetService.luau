@@ -1,9 +1,7 @@
 --[[
 	NetService — единая точка входа для запросов клиента.
-
-	• Только действия из Net.Actions; у каждого свой лимит частоты (token bucket).
-	• Обработчики выполняются без yield, поэтому проверка и изменение состояния
-	  атомарны: двойной клик или повтор запроса не может выдать награду дважды.
+	• Только объявленные в Net.Actions действия, лимит частоты на каждое (token bucket).
+	• Обработчики не уступают управление — проверка и изменение атомарны.
 	• Ошибка в обработчике не роняет сервер и не утекает клиенту.
 ]]
 
@@ -23,6 +21,12 @@ local buckets: { [Player]: { [string]: { tokens: number, last: number } } } = {}
 
 function NetService:Init(registry)
 	services = registry
+	-- Все удалённые объекты создаются сразу: клиент ждёт их через WaitForChild
+	-- при запуске, даже если ни одного матча ещё не было
+	for _, name in Net.Events do
+		Net.Event(name)
+	end
+	Net.ActionFunction()
 end
 
 function NetService:Handle(name: string, handler: Handler)
@@ -38,8 +42,8 @@ local function allow(player: Player, action: string): boolean
 		perPlayer = {}
 		buckets[player] = perPlayer
 	end
-	local bucket = perPlayer[action]
 	local now = os.clock()
+	local bucket = perPlayer[action]
 	if not bucket then
 		bucket = { tokens = limit, last = now }
 		perPlayer[action] = bucket
@@ -53,20 +57,22 @@ local function allow(player: Player, action: string): boolean
 	return true
 end
 
--- Валидаторы полезной нагрузки
 NetService.Check = {}
-
-function NetService.Check.String(value: any, maxLength: number?): boolean
-	return type(value) == "string" and #value > 0 and #value <= (maxLength or 64)
-end
-
-function NetService.Check.Int(value: any, min: number, max: number): boolean
-	return type(value) == "number" and value == value and value == math.floor(value)
-		and value >= min and value <= max
-end
 
 function NetService.Check.Table(value: any): boolean
 	return type(value) == "table"
+end
+
+function NetService.Check.String(value: any, maxLength: number?): boolean
+	return type(value) == "string" and #value > 0 and #value <= (maxLength or 48)
+end
+
+function NetService.Check.Int(value: any, min: number, max: number): boolean
+	return type(value) == "number" and value == value and value == math.floor(value) and value >= min and value <= max
+end
+
+function NetService.Check.Number(value: any, min: number, max: number): boolean
+	return type(value) == "number" and value == value and value >= min and value <= max
 end
 
 function NetService:Start()
@@ -84,15 +90,11 @@ function NetService:Start()
 		end
 		local ok, success, message, data = pcall(handlers[name], player, session, payload)
 		if not ok then
-			warn(string.format("[NetService] %s from %s failed: %s", name, player.Name, tostring(success)))
+			warn(string.format("[NetService] %s от %s: %s", name, player.Name, tostring(success)))
 			return { ok = false, message = "Ошибка сервера" }
-		end
-		if success then
-			services.DataService:MarkDirty(player)
 		end
 		return { ok = success == true, message = message, data = data }
 	end
-
 	Players.PlayerRemoving:Connect(function(player)
 		buckets[player] = nil
 	end)

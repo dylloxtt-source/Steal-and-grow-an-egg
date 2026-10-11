@@ -1,10 +1,10 @@
 --[[
-	Форматирование чисел и времени для UI: 1.3M, $481.8M, 4m 42s.
+	Форматирование чисел и времени для интерфейса.
 ]]
 
 local Format = {}
 
-local SUFFIXES = { "", "K", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc" }
+local SUFFIXES = { "", "K", "M", "B", "T" }
 
 function Format.Number(n: number): string
 	if n ~= n then
@@ -12,44 +12,32 @@ function Format.Number(n: number): string
 	end
 	local negative = n < 0
 	n = math.abs(n)
+	local text
 	if n < 1000 then
-		local text = if n == math.floor(n) or n >= 100 then tostring(math.floor(n)) else string.format("%.1f", n)
-		text = string.gsub(text, "%.0$", "")
-		return (if negative then "-" else "") .. text
+		text = tostring(math.floor(n))
+	else
+		local tier = math.min(math.floor(math.log10(n) / 3), #SUFFIXES - 1)
+		local scaled = n / 10 ^ (tier * 3)
+		text = string.gsub(string.format("%.1f", math.floor(scaled * 10) / 10), "%.0$", "") .. SUFFIXES[tier + 1]
 	end
-	local tier = math.min(math.floor(math.log10(n) / 3), #SUFFIXES - 1)
-	local scaled = n / 10 ^ (tier * 3)
-	local text = string.format("%.1f", math.floor(scaled * 10) / 10)
-	text = string.gsub(text, "%.0$", "")
-	return (if negative then "-" else "") .. text .. SUFFIXES[tier + 1]
+	return (if negative then "-" else "") .. text
 end
 
-function Format.Money(n: number): string
+function Format.Cash(n: number): string
 	return "$" .. Format.Number(n)
 end
 
 function Format.Time(seconds: number): string
 	seconds = math.max(0, math.ceil(seconds))
 	if seconds < 60 then
-		return string.format("%ds", seconds)
+		return string.format("0:%02d", seconds)
 	end
-	local h = math.floor(seconds / 3600)
-	local m = math.floor((seconds % 3600) / 60)
-	local s = seconds % 60
-	if h > 0 then
-		return string.format("%dh %dm", h, m)
-	end
-	return string.format("%dm %ds", m, s)
+	return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
 end
 
-function Format.Percent(p: number): string
-	local value = p * 100
-	if value >= 10 then
-		return string.format("%d%%", math.floor(value + 0.5))
-	elseif value >= 1 then
-		return (string.gsub(string.format("%.1f%%", value), "%.0%%", "%%"))
-	end
-	return (string.gsub(string.format("%.2f%%", value), "0+%%$", "%%"))
+function Format.Decimal(n: number, digits: number?): string
+	local text = string.format("%." .. tostring(digits or 1) .. "f", n)
+	return (string.gsub(text, "%.0+$", ""))
 end
 
 return Format

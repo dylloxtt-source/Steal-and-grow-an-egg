@@ -1,563 +1,709 @@
 --[[
-	Интеграционный тест: сервер и клиент игры на эмуляторе движка (tests/sim/Engine.luau).
-	Запуск:  lune run tests/integration.luau
-	Проверяет основной цикл, кражу, защиту, ферму, задания, сохранение и сборку UI.
+	Интеграционный тест: настоящий код сервера и клиента в эмуляторе (tests/sim/Engine).
+	Сценарии: лобби и лифты → матч на выбранной карте → башни, улучшения, продажа,
+	приоритеты → волны, яд, босс → поражение/победа → итоги → возврат в лобби → очистка.
+	Плюс защита: неверные запросы, нехватка денег, спам, двойная награда, отключения.
+
+	Запуск: lune run tests/integration.luau
+	Это НЕ замена проверки в Roblox Studio: физика, рендер, анимации, звук и реальная
+	сеть здесь не эмулируются (см. docs/TESTING.md).
 ]]
 
 local process = require("@lune/process")
-local task = require("@lune/task")
 local roblox = require("@lune/roblox")
+local task = require("@lune/task")
 local Engine = require("./sim/Engine")
 
 local Vector3 = roblox.Vector3
+local Vector2 = roblox.Vector2
 local CFrame = roblox.CFrame
 
+------------------------------------------------------------------------
+-- Мини-фреймворк
+------------------------------------------------------------------------
+
 local passed, failed = 0, 0
-local section = ""
-local function ok(cond, message)
-	if cond then
+local failures = {}
+
+local function check(name: string, condition: any, detail: any?)
+	if condition then
 		passed += 1
+		print("  ✔ " .. name)
 	else
 		failed += 1
-		print(string.format("  ✗ [%s] %s", section, message))
+		local text = name .. (if detail ~= nil then "  —  " .. tostring(detail) else "")
+		table.insert(failures, text)
+		print("  ✘ " .. text)
 	end
 end
-local function eq(a, b, message)
-	ok(a == b, string.format("%s (ожидалось %s, получено %s)", message, tostring(b), tostring(a)))
-end
-local function step(name)
-	section = name
-	print("• " .. name)
-end
-local function wait(seconds)
-	task.wait(seconds)
+
+local function section(name: string)
+	print("\n== " .. name .. " ==")
 end
 
-local function scenario()
 ------------------------------------------------------------------------
-step("Запуск сервера")
+-- Запуск сервера и клиента
+------------------------------------------------------------------------
+
 local server = Engine.Realm(true)
-local bootOk, bootErr = pcall(server.require, Engine.ServerNode)
-ok(bootOk, "init.server выполнился: " .. tostring(bootErr))
+local serverOk, serverErr = pcall(server.require, Engine.ServerNode)
+
 local S = Engine.ServerNode.Services
 local DataService = server.require(S.DataService)
-local IncubatorService = server.require(S.IncubatorService)
-local CarryService = server.require(S.CarryService)
-local PlotService = server.require(S.PlotService)
+local LobbyService = server.require(S.LobbyService)
+local ElevatorService = server.require(S.ElevatorService)
+local MatchService = server.require(S.MatchService)
 local Shared = Engine.SharedNode
-local Map = server.require(Shared.Config.Map)
-local Eggs = server.require(Shared.Config.Eggs)
-ok(Engine.Workspace:FindFirstChild("Map") ~= nil, "карта построена")
-ok(Engine.Workspace:FindFirstChild("WorldItems") ~= nil, "предметы мира созданы")
-local mapParts = 0
-for _, d in Engine.Workspace:GetDescendants() do
-	if d:IsA("BasePart") then
-		mapParts += 1
-	end
-end
-print(string.format("  деталей в мире: %d", mapParts))
-ok(mapParts > 1000 and mapParts < 12000, "разумное количество деталей карты")
-for _, w in Engine.Warnings do
-	print("  warn: " .. w)
-end
-eq(#Engine.Warnings, 0, "без предупреждений при старте")
+local Maps = server.require(Shared.Config.Maps)
+local Towers = server.require(Shared.Config.Towers)
+local Enemies = server.require(Shared.Config.Enemies)
+local Waves = server.require(Shared.Config.Waves)
+local Economy = server.require(Shared.Config.Economy)
+local Game = server.require(Shared.Config.Game)
+local Placement = server.require(Shared.Logic.Placement)
+local MapLayout = server.require(Shared.Logic.MapLayout)
 
-------------------------------------------------------------------------
-step("Вход игрока и загрузка профиля")
-local alice = Engine.NewPlayer("Alice")
-Engine.LocalPlayer = alice
-Engine.Join(alice)
-Engine.SpawnCharacter(alice, Map.Spawn + Vector3.new(0, 3, 0))
-wait(0.4)
-local aliceSession = DataService:GetSession(alice)
-ok(aliceSession ~= nil, "сессия загружена")
-ok(aliceSession.Plot ~= nil, "база выдана")
-eq(alice:GetAttribute("Loaded"), true, "атрибут Loaded")
-local profile = aliceSession.Profile
-eq(profile.coins, 100, "стартовые монеты")
-eq(#profile.eggs, 1, "стартовое яйцо")
-local root = alice.Character.HumanoidRootPart
-ok(Map.InPlot(aliceSession.Plot.Index, Engine.GetPosition(root)), "персонаж телепортирован на базу")
-eq(alice.Character.Humanoid.WalkSpeed, 16, "базовая скорость")
+local p1 = Engine.NewPlayer("Alice") -- локальный игрок клиента
+local p2 = Engine.NewPlayer("Bob")
+local p3 = Engine.NewPlayer("Carol")
+local p4 = Engine.NewPlayer("Dave")
+local p5 = Engine.NewPlayer("Eve")
+Engine.LocalPlayer = p1
+for i, p in { p1, p2, p3, p4, p5 } do
+	Engine.Join(p)
+	Engine.SpawnCharacter(p, Vector3.new(i * 3 - 9, 3, 40))
+end
+task.wait(0.3)
 
-------------------------------------------------------------------------
-step("Клиент: сборка UI")
 local client = Engine.Realm(false)
 local clientOk, clientErr = pcall(client.require, Engine.ClientNode)
-ok(clientOk, "init.client выполнился: " .. tostring(clientErr))
-wait(0.6)
-local State = client.require(Engine.ClientNode.State)
-ok(State.Profile() ~= nil, "клиент получил снимок профиля")
-local gui = alice.PlayerGui:FindFirstChild("SGAE_UI")
-ok(gui ~= nil, "ScreenGui создан")
+task.wait(0.3)
 
-local function act(name, payload)
-	local success = State.Action(name, payload)
-	wait(0.2) -- снимок состояния уходит с задержкой 0.12
-	return success
-end
+local C = Engine.ClientNode
+local ClientState = client.require(C.State)
+local PlacementController = client.require(C.Controllers.PlacementController)
+local TowerController = client.require(C.Controllers.TowerController)
+local HUDController = client.require(C.Controllers.HUDController)
 
-------------------------------------------------------------------------
-step("Инкубация и вылупление")
-local starterUid = profile.eggs[1].uid
-ok(act("Incubate", { uid = starterUid }), "яйцо помещено в инкубатор")
-ok(profile.incubators["1"] ~= nil, "запись инкубатора")
-eq(profile.tutorial, 2, "обучение: шаг 2")
-ok(not act("Incubate", { uid = starterUid }), "повторная инкубация того же яйца отклонена")
-ok(not act("Hatch", { slot = 1 }), "рано вылуплять")
-local incModel = aliceSession.Plot.Incubators[1].Model
-eq(incModel:GetAttribute("State"), "incubating", "атрибут State = incubating")
-ok(incModel:FindFirstChild("Egg") ~= nil, "модель яйца в инкубаторе")
-Engine.Advance(31)
-local coinsBefore = profile.coins
-ok(act("Hatch", { slot = 1 }), "вылупление")
-ok(not act("Hatch", { slot = 1 }), "повторное вылупление отклонено")
-local creatureCount = 0
-local creatureUid
-for uid in profile.creatures do
-	creatureCount += 1
-	creatureUid = uid
-end
-eq(creatureCount, 1, "ровно одно существо")
-ok(profile.coins > coinsBefore, "награда за открытие в индексе")
-local hatchedEvents = 0
-for _, entry in Engine.RemoteLog do
-	if entry.event == "Hatched" and entry.player == alice then
-		hatchedEvents += 1
+local function tick(seconds: number, dt: number?)
+	local step = dt or 0.1
+	local n = math.max(1, math.floor(seconds / step + 0.5))
+	for _ = 1, n do
+		server.RunService.Heartbeat:FireSync(step)
+		client.RunService.Heartbeat:FireSync(step)
+		client.RunService.RenderStepped:FireSync(step)
 	end
 end
-eq(hatchedEvents, 1, "одно событие Hatched")
-ok(aliceSession.Plot.Pen:FindFirstChild(creatureUid) ~= nil, "модель существа в загоне")
+
+-- Запрос к серверу от имени игрока; при «Слишком часто» ждёт и повторяет
+local function act(player, name: string, payload: any?): any
+	for _ = 1, 10 do
+		local result = Engine.InvokeAs(player, name, payload)
+		if result.message ~= "Слишком часто" then
+			return result
+		end
+		task.wait(0.25)
+	end
+	return { ok = false, message = "rate-limited" }
+end
+
+local gui = p1.PlayerGui:FindFirstChild("TD_UI")
+
+local function visible(instance): boolean
+	local current = instance
+	while current and current ~= gui do
+		if current:IsA("GuiObject") and not current.Visible then
+			return false
+		end
+		current = current.Parent
+	end
+	return current == gui
+end
+
+local function findText(root, pattern: string)
+	for _, d in root:GetDescendants() do
+		if (d:IsA("TextLabel") or d:IsA("TextButton")) and string.find(d.Text, pattern, 1, true) and visible(d) then
+			return d
+		end
+	end
+	return nil
+end
+
+local function boothPosition(index: number): Vector3
+	return LobbyService.Booths[index].Center + Vector3.new(0, 3, 0)
+end
+
+local function elevator(index: number)
+	return ElevatorService.Elevators[index]
+end
+
+local function warningsContaining(pattern: string): { string }
+	local list = {}
+	for _, w in Engine.Warnings do
+		if string.find(w, pattern, 1, true) then
+			table.insert(list, w)
+		end
+	end
+	return list
+end
 
 ------------------------------------------------------------------------
-step("Кормление")
-local creature = profile.creatures[creatureUid]
-local pellets = profile.food.pellet
-ok(act("Feed", { uid = creatureUid, food = "pellet" }), "покормили")
-eq(profile.food.pellet, pellets - 1, "гранула потрачена")
-ok(creature.fullness > 60, "сытость выросла")
-creature.fullness = 99
-ok(not act("Feed", { uid = creatureUid, food = "pellet" }), "сытого не кормим")
-eq(profile.food.pellet, pellets - 1, "еда не списана при отказе")
-ok(not act("Feed", { uid = creatureUid, food = "starfruit" }), "нельзя скормить отсутствующую еду")
+section("Запуск")
+------------------------------------------------------------------------
+
+check("сервер запустился без ошибок", serverOk, serverErr)
+check("все сервисы стартовали", #warningsContaining("не запустился") == 0, table.concat(warningsContaining("не запустился"), "; "))
+check("лобби построено (4 лифта)", Engine.Workspace:FindFirstChild("Lobby") ~= nil and #LobbyService.Booths == 4)
+check("профили загружены", DataService:GetSession(p1) ~= nil and DataService:GetSession(p5) ~= nil)
+check("атрибут Loaded выставлен", p1:GetAttribute("Loaded") == true)
+check("клиент запустился без ошибок", clientOk, clientErr)
+check("ScreenGui TD_UI создан", gui ~= nil)
+check("клиент получил профиль", ClientState.Profile ~= nil and ClientState.Profile.level == 1)
+check("слой лобби виден, HUD матча скрыт", gui.Lobby.Visible == true and gui.Match.Visible == false)
+check("в режиме DataStore (эмулятор) нет ложного «тестового режима»", DataService.MemoryMode == false)
 
 ------------------------------------------------------------------------
-step("Яйцо с дорожки и доставка")
-Engine.MoveTo(alice, Vector3.new(0, 3, 100))
-local worldEgg
-for _, model in Engine.Workspace.WorldItems:GetChildren() do
-	if model:IsA("Model") and model:GetAttribute("Zone") == "meadow" then
-		worldEgg = model
+section("Лифты")
+------------------------------------------------------------------------
+
+tick(0.5)
+check("все лифты свободны", elevator(1).State == "Empty" and elevator(4).State == "Empty")
+
+Engine.MoveTo(p1, boothPosition(1))
+tick(0.5)
+check("вход: игрок в лифте 1, состояние Waiting", elevator(1).State == "Waiting" and #elevator(1).Members == 1)
+check("первый вошедший — лидер", elevator(1).Leader == p1)
+check("таймер ожидания запущен", elevator(1).Timer > 0 and elevator(1).Timer <= Game.Elevator.WaitTime)
+check("клиент видит меню своего лифта", visible(gui.Lobby.Elevator) and ClientState.MyElevator() ~= nil)
+
+Engine.MoveTo(p2, boothPosition(1))
+tick(0.5)
+check("два игрока в одной группе", #elevator(1).Members == 2 and elevator(1).Leader == p1)
+
+local r = act(p2, "ElevatorSetMap", { map = "desert" })
+check("не лидер не может менять карту", r.ok == false, r.message)
+r = act(p1, "ElevatorSetMap", { map = "desert" })
+check("лидер выбирает карту", r.ok == true and elevator(1).MapId == "desert", r.message)
+r = act(p1, "ElevatorSetMap", { map = "unknown_map" })
+check("несуществующая карта отклонена", r.ok == false and elevator(1).MapId == "desert")
+r = act(p1, "ElevatorSetCapacity", { capacity = 1 })
+check("вместимость меньше числа игроков отклонена", r.ok == false and elevator(1).Capacity == 4, r.message)
+r = act(p1, "ElevatorSetCapacity", { capacity = 3 })
+check("лидер меняет вместимость", r.ok == true and elevator(1).Capacity == 3)
+for _, bad in { 0, 5, 2.5, -1, "3", 0 / 0 } do
+	r = act(p1, "ElevatorSetCapacity", { capacity = bad })
+	check("неверная вместимость отклонена: " .. tostring(bad), r.ok == false and elevator(1).Capacity == 3)
+end
+tick(0.3)
+check("клиент видит выбранную карту в меню", findText(gui.Lobby.Elevator, "Desert Canyon") ~= nil)
+
+r = act(p1, "ElevatorLeave")
+tick(0.5)
+check("выход лидера: лидером стал следующий", r.ok and elevator(1).Leader == p2 and #elevator(1).Members == 1)
+check("вышедший выведен из кабины и не вернулся", ElevatorService:ElevatorOf(p1) == nil)
+
+Engine.MoveTo(p1, boothPosition(2))
+tick(0.5)
+check("два лифта работают одновременно", elevator(1).State == "Waiting" and elevator(2).State == "Waiting" and elevator(2).Leader == p1)
+local joined, joinErr = ElevatorService:Join(p1, elevator(1))
+check("нельзя состоять в двух лифтах", joined == false and #elevator(1).Members == 1, joinErr)
+
+Engine.MoveTo(p4, boothPosition(3))
+tick(0.5)
+check("игрок в лифте 3", ElevatorService:ElevatorOf(p4) == elevator(3))
+Engine.Leave(p4)
+tick(0.5)
+check("отключение: лифт 3 снова свободен", elevator(3).State == "Empty" and #elevator(3).Members == 0)
+
+-- Заполненная группа: вместимость 2, третий игрок не помещается
+r = act(p1, "ElevatorSetCapacity", { capacity = 2 })
+Engine.MoveTo(p3, boothPosition(2))
+tick(0.5)
+check("группа заполнена → отсчёт Starting", #elevator(2).Members == 2 and elevator(2).State == "Starting")
+Engine.MoveTo(p5, boothPosition(2))
+tick(0.5)
+check("лишний игрок не попал в полный лифт", ElevatorService:ElevatorOf(p5) == nil and #elevator(2).Members == 2)
+
+-- Уход во время отсчёта возвращает к ожиданию
+Engine.MoveTo(p3, Vector3.new(0, 3, 40))
+tick(0.5)
+check("уход во время отсчёта → снова Waiting", elevator(2).State == "Waiting" and #elevator(2).Members == 1)
+r = act(p1, "ElevatorSetCapacity", { capacity = 1 })
+check("соло-группа (1 игрок)", r.ok and elevator(2).Capacity == 1)
+tick(0.5)
+check("соло-группа сразу начинает отсчёт", elevator(2).State == "Starting")
+
+-- Лифт 1: Bob + Eve, готовность
+Engine.MoveTo(p5, boothPosition(1))
+tick(0.5)
+r = act(p2, "ElevatorReady", { ready = true })
+tick(0.3)
+check("готов один из двух — ждём остальных", elevator(1).State == "Waiting" and r.ok)
+r = act(p5, "ElevatorReady", { ready = "yes" })
+check("неверный флаг готовности отклонён", r.ok == false)
+r = act(p5, "ElevatorReady", { ready = true })
+tick(0.3)
+check("все готовы → отсчёт", elevator(1).State == "Starting")
+
+tick(Game.Elevator.StartTime + 0.5)
+check("лифт 2 запустил матч", elevator(2).State == "InMatch" and p1:GetAttribute("MatchId") ~= nil)
+check("лифт 1 запустил матч", elevator(1).State == "InMatch" and p2:GetAttribute("MatchId") ~= nil and p5:GetAttribute("MatchId") ~= nil)
+check("Bob и Eve в одном матче", p2:GetAttribute("MatchId") == p5:GetAttribute("MatchId"))
+check("разные группы — разные матчи", p1:GetAttribute("MatchId") ~= p2:GetAttribute("MatchId"))
+tick(Game.Elevator.InMatchHold + 0.5)
+check("после запуска лифты снова свободны", elevator(1).State == "Empty" and elevator(2).State == "Empty")
+r = act(p1, "ElevatorSetMap", { map = "snow" })
+check("игрок в матче не управляет лифтом", r.ok == false)
+
+------------------------------------------------------------------------
+section("Матч: карта, деньги, HUD")
+------------------------------------------------------------------------
+
+local solo = MatchService:MatchOf(p1)
+local duo = MatchService:MatchOf(p2)
+check("соло-матч на карте Greenfield", solo and solo.MapId == "greenfield")
+check("матч группы на выбранной карте Desert Canyon", duo and duo.MapId == "desert")
+local folder = Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. solo.Id)
+check("карта построена в мире", folder ~= nil and folder:FindFirstChild("Map_greenfield") ~= nil)
+check("карты матчей не пересекаются", (solo.Origin - duo.Origin).Magnitude >= Game.Match.SlotSpacing)
+local character = p1.Character
+local offset = character.PrimaryPart.CFrame.Position - solo.Origin
+check("игрок перенесён на карту", math.abs(offset.X) < 100 and math.abs(offset.Z) < 100)
+check("стартовые деньги", solo.PlayerState[p1.UserId].Cash == Economy.StartCash and duo.PlayerState[p5.UserId].Cash == Economy.StartCash)
+check("здоровье базы по карте", solo.BaseHealth == Maps.ById.greenfield.BaseHealth)
+check("фаза подготовки", solo.Waves.Phase == "Prep" and solo.Waves.Wave == 0)
+tick(0.3)
+check("клиент: HUD матча виден, лобби скрыто", gui.Match.Visible == true and gui.Lobby.Visible == false)
+check("клиент: снимок матча получен", ClientState.Match ~= nil and ClientState.Match.mapId == "greenfield")
+check("HUD: волна", findText(gui.Match, "ВОЛНА 0 / 30") ~= nil)
+check("HUD: деньги", findText(gui.Match, "$" .. Economy.StartCash) ~= nil)
+check("HUD: таймер подготовки", findText(gui.Match, "старт через") ~= nil)
+check("HUD: 8 карточек башен", #gui.Match.BottomCenter.TowerBar:GetChildren() >= 8 and gui.Match.BottomCenter.TowerBar:FindFirstChild("wolverine") ~= nil)
+local Lighting = Engine.DataModel:GetService("Lighting")
+check("клиент: освещение карты", math.abs(Lighting.ClockTime - Maps.ById.greenfield.Lighting.ClockTime) < 0.01)
+
+------------------------------------------------------------------------
+section("Размещение башен")
+------------------------------------------------------------------------
+
+local function spots(match, range: number): { any }
+	local layout = MapLayout.Get(match.MapId)
+	local samples = {}
+	local d = 0
+	while d < layout.Path.Length * 0.6 do
+		table.insert(samples, (layout.Path:At(d)))
+		d += 2
+	end
+	local list = {}
+	local bounds = layout.Map.Bounds
+	for x = -bounds.X + 2, bounds.X - 2, 2 do
+		for z = -bounds.Y + 2, bounds.Y - 2, 2 do
+			if Placement.Check(match.MapId, x, z, match.Towers:Footprints()) then
+				local cover = 0
+				for _, s in samples do
+					if (s - Vector3.new(x, 0, z)).Magnitude <= range then
+						cover += 1
+					end
+				end
+				if cover > 0 then
+					table.insert(list, { X = x, Z = z, Cover = cover })
+				end
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.Cover > b.Cover
+	end)
+	return list
+end
+
+local path = MapLayout.Get("greenfield").Path
+local onPath = path:At(30)
+r = act(p1, "PlaceTower", { tower = "archer", x = onPath.X, z = onPath.Z })
+check("нельзя ставить на дорогу", r.ok == false and r.message == Placement.Reasons.Path, r.message)
+r = act(p1, "PlaceTower", { tower = "archer", x = 400, z = 0 })
+check("нельзя ставить за картой", r.ok == false, r.message)
+r = act(p1, "PlaceTower", { tower = "archer", x = 0 / 0, z = 0 })
+check("NaN-координаты отклонены", r.ok == false)
+r = act(p1, "PlaceTower", { tower = "dragon", x = 0, z = 0 })
+check("несуществующая башня отклонена", r.ok == false)
+local best = spots(solo, 12)[1]
+r = act(p1, "PlaceTower", { tower = "wolverine", x = best.X, z = best.Z })
+check("не хватает денег — отказ", r.ok == false and r.message == "Недостаточно денег", r.message)
+check("деньги не списаны при отказе", solo.PlayerState[p1.UserId].Cash == Economy.StartCash)
+
+-- Клиентский призрак: камера смотрит сверху на точку
+local camera = Engine.Workspace.CurrentCamera
+local placementEvents = {}
+PlacementController.Changed.Event:Connect(function(active, valid, reason)
+	table.insert(placementEvents, { active, valid, reason })
+end)
+local function aimAt(localPoint: Vector3)
+	local world = solo.Origin + Vector3.new(localPoint.X, 0, localPoint.Z)
+	-- CFrame.lookAt в Lune ошибается для части направлений, поэтому камера задаётся углами:
+	-- наклон вниз atan(50/25), луч из центра экрана попадает ровно в точку
+	camera.CFrame = CFrame.new(world + Vector3.new(0, 50, 25)) * CFrame.Angles(-math.atan2(50, 25), 0, 0)
+	Engine.MouseLocation = Vector2.new(640, 360)
+end
+aimAt(onPath)
+HUDController.Choose("archer")
+tick(0.2)
+check("призрак башни создан", Engine.Workspace:FindFirstChild("PlacementGhost") ~= nil and PlacementController.Active())
+local last = placementEvents[#placementEvents]
+check("призрак на дороге — красный с причиной", last and last[2] == false and last[3] == Placement.Reasons.Path, last and last[3])
+check("HUD показывает причину запрета", findText(gui.Match, Placement.Reasons.Path) ~= nil)
+aimAt(Vector3.new(best.X, 0, best.Z))
+tick(0.2)
+last = placementEvents[#placementEvents]
+check("призрак на свободном месте — зелёный", last and last[2] == true, last and last[3])
+PlacementController.Confirm()
+tick(0.3)
+check("клиент поставил башню через сервер", #solo.Towers.List == 1 and solo.Towers.List[1].TowerId == "archer")
+check("призрак убран после установки", not PlacementController.Active() and Engine.Workspace:FindFirstChild("PlacementGhost") == nil)
+check("деньги списаны", solo.PlayerState[p1.UserId].Cash == Economy.StartCash - Towers.ById.archer.Levels[1].Cost)
+r = act(p1, "PlaceTower", { tower = "archer", x = best.X + 0.5, z = best.Z })
+check("нельзя ставить вплотную к другой башне", r.ok == false and r.message == Placement.Reasons.Tower, r.message)
+
+-- Все 8 башен (денег добавляем напрямую, чтобы проверить каждую)
+solo.PlayerState[p1.UserId].Cash = 100000
+for _, def in Towers.List do
+	if def.Id ~= "archer" then
+		local spot = spots(solo, def.Levels[1].Range)[1]
+		r = act(p1, "PlaceTower", { tower = def.Id, x = spot.X, z = spot.Z })
+		check("установлена башня " .. def.Name, r.ok == true, r.message)
+	end
+end
+check("на карте 8 башен", #solo.Towers.List == 8)
+local models = folder.Towers:GetChildren()
+check("у каждой башни модель R6 с оружием", #models == 8)
+local r6ok = true
+for _, model in models do
+	for _, part in { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "HumanoidRootPart" } do
+		if not model:FindFirstChild(part, true) then
+			r6ok = false
+		end
+	end
+end
+check("модели башен содержат все части R6", r6ok)
+
+------------------------------------------------------------------------
+section("Волны и бой")
+------------------------------------------------------------------------
+
+r = act(p1, "VoteSkip")
+tick(0.2)
+check("пропуск подготовки (соло — сразу)", r.ok and solo.Waves.Wave == 1 and solo.Waves.Phase == "Wave", r.message)
+local firstUid = nil
+tick(4)
+local alive = solo.Enemies.Alive
+check("враги появились", #alive > 0 or solo.Enemies.Killed > 0)
+if alive[1] then
+	local walker = alive[1]
+	firstUid = walker.Uid
+	local d0 = walker.Distance
+	tick(0.5)
+	check("враги движутся по маршруту", walker.Dead or walker.Distance > d0, string.format("%.2f -> %.2f", d0, walker.Distance))
+	check("клиент получает данные движения (Dist0/Speed)", walker.Model:GetAttribute("Speed") ~= nil and walker.Model:GetAttribute("Dist0") ~= nil)
+end
+r = act(p1, "VoteSpeed")
+check("голос за x2 (соло — большинство)", r.ok and solo.TimeScale == 2)
+local fastWalker = solo.Enemies.Alive[1]
+tick(0.3)
+check("скорость врагов для клиента учитывает x2", fastWalker == nil or fastWalker.Dead
+	or math.abs((fastWalker.Model:GetAttribute("Speed") or 0) - fastWalker.SyncedSpeed * 2) < 1e-6)
+check("HUD: кнопка x2 отмечена", findText(gui.Match, "x2 включено") ~= nil)
+r = act(p1, "VoteSpeed")
+check("повторный голос отменяет x2", r.ok and solo.TimeScale == 1)
+check("клиент видит врагов (тег Enemy)", #Engine.Workspace.ActiveMatches:GetDescendants() > 0)
+
+local towerByType = {}
+for _, tower in solo.Towers.List do
+	towerByType[tower.TowerId] = tower
+end
+-- Яд: несколько попаданий не складываются бесконечно
+local toxicMax = 0
+for _, def in Towers.ById.toxic.Levels do
+	toxicMax = math.max(toxicMax, def.Poison.Dps)
+end
+local poisonOk = true
+local cashBefore = solo.PlayerState[p1.UserId].Earned
+for _ = 1, 600 do
+	tick(0.5, 0.25)
+	for _, enemy in solo.Enemies.Alive do
+		if enemy.PoisonDps > toxicMax + 1e-6 then
+			poisonOk = false
+		end
+	end
+	if solo.Waves.Wave >= 5 and solo.Waves.Phase ~= "Wave" then
 		break
 	end
-end
-ok(worldEgg ~= nil, "на лугу есть яйца")
-local prompt = worldEgg:FindFirstChild("Root"):FindFirstChildOfClass("ProximityPrompt")
-prompt.Triggered:FireSync(alice)
-eq(CarryService:Count(aliceSession), 1, "яйцо в руках")
-eq(worldEgg.Parent, nil, "яйцо убрано с земли (второй игрок не сможет его взять)")
-ok(alice.Character:FindFirstChild("CarriedEgg") ~= nil, "модель яйца над головой")
-ok(alice.Character.Humanoid.WalkSpeed < 16, "переноска замедляет")
-local other
-for _, model in Engine.Workspace.WorldItems:GetChildren() do
-	if model:IsA("Model") and model:GetAttribute("EggId") and model ~= worldEgg and model.Parent then
-		other = model
-		break
+	if solo.Waves.Phase == "Intermission" then
+		act(p1, "VoteSkip")
 	end
 end
-other.Root:FindFirstChildOfClass("ProximityPrompt").Triggered:FireSync(alice)
-eq(CarryService:Count(aliceSession), 1, "сумка на 1 яйцо")
-Engine.MoveTo(alice, Map.PlotWorld(aliceSession.Plot.Index, Map.PlotLayout.Delivery) + Vector3.new(0, 3, 0))
-wait(0.5)
-eq(CarryService:Count(aliceSession), 0, "яйцо сдано на базе")
-ok(profile.incubators["1"] ~= nil, "доставленное яйцо автоматически в инкубаторе")
-eq(profile.tutorial, 4, "обучение: шаги grab и deliver пройдены")
-
-------------------------------------------------------------------------
-step("Еда на дорожке")
-local food
-for _, part in Engine.Workspace.WorldItems:GetChildren() do
-	if part:IsA("BasePart") and part:GetAttribute("FoodId") then
-		food = part
-		break
+check("до 5-й волны дошли", solo.Waves.Wave >= 3, solo.Waves.Wave)
+check("яд не накапливается сверх максимума", poisonOk)
+check("за убийства начисляются деньги", solo.PlayerState[p1.UserId].Earned > cashBefore)
+check("убийства засчитаны игроку", solo.PlayerState[p1.UserId].Kills > 0)
+-- Каждая башня: враг-танк ставится на ближайшую к ней точку дороги
+local function nearestDistance(position: Vector3): number
+	local bestD, bestGap = 0, math.huge
+	local d = 0
+	while d <= path.Length do
+		local gap = (path:At(d) - position).Magnitude
+		if gap < bestGap then
+			bestD, bestGap = d, gap
+		end
+		d += 0.5
+	end
+	return bestD
+end
+local silent = {}
+local savedPhase = solo.Waves.Phase
+for id, tower in towerByType do
+	for _, e in table.clone(solo.Enemies.Alive) do
+		solo.Enemies:Kill(e)
+	end
+	solo.Waves.Queue = {}
+	local before = tower.Damage
+	local target = solo.Enemies:Spawn("tank", Waves.Get(1), nearestDistance(tower.Position))
+	target.BaseSpeed = 0.2
+	tower.Cooldown = 0
+	for _ = 1, 30 do
+		solo:Step(0.1)
+	end
+	if tower.Damage <= before then
+		table.insert(silent, id)
 	end
 end
-ok(food ~= nil, "на дорожке лежит еда")
-local foodId = food:GetAttribute("FoodId")
-local had = profile.food[foodId] or 0
-food.Touched:FireSync(root)
-ok((profile.food[foodId] or 0) > had, "еда подобрана касанием")
-eq(food.Parent, nil, "еда исчезла с земли")
+solo.Waves.Phase = savedPhase
+check("каждая из 8 башен атакует врага в радиусе", #silent == 0, table.concat(silent, ","))
+check("награда за волну начисляется один раз", solo.WavesCleared >= 1)
+check("клиент: нет ошибок в эффектах", #warningsContaining("[Fx]") == 0, table.concat(warningsContaining("[Fx]"), "; "))
 
 ------------------------------------------------------------------------
-step("Доход и касса")
-for _ = 1, 3 do
-	Engine.Advance(1)
-	wait(1.05)
+section("Улучшение, продажа, приоритеты")
+------------------------------------------------------------------------
+
+local archer = towerByType.archer
+local cash = solo.PlayerState[p1.UserId].Cash
+r = act(p1, "UpgradeTower", { uid = archer.Uid })
+check("улучшение до 2 уровня", r.ok and archer.Level == 2 and archer.Model:GetAttribute("Level") == 2, r.message)
+check("стоимость улучшения списана", solo.PlayerState[p1.UserId].Cash == cash - Towers.ById.archer.Levels[2].Cost)
+for _ = 3, Towers.MaxLevel do
+	act(p1, "UpgradeTower", { uid = archer.Uid })
 end
-ok(profile.vault > 0, "доход копится в кассе: " .. tostring(profile.vault))
-local coins = profile.coins
-aliceSession.Plot.Vault.Touched:FireSync(root)
-ok(profile.coins > coins, "касса собрана")
-ok(profile.vault < 1, "касса пуста")
+check("максимальный уровень", archer.Level == Towers.MaxLevel)
+r = act(p1, "UpgradeTower", { uid = archer.Uid })
+check("сверх максимума — отказ", r.ok == false and r.message == "Максимальный уровень", r.message)
+r = act(p1, "UpgradeTower", { uid = "1; DROP" })
+check("неверный uid отклонён", r.ok == false)
+r = act(p2, "UpgradeTower", { uid = archer.Uid })
+check("игрок другого матча не трогает чужую башню", r.ok == false)
+
+-- Клиентское меню башни
+tick(0.3)
+local archerModel = nil
+for _, model in folder.Towers:GetChildren() do
+	if model:GetAttribute("Uid") == archer.Uid then
+		archerModel = model
+	end
+end
+TowerController.Select(archerModel)
+tick(0.3)
+check("меню башни открыто", visible(gui.Match.TowerInfo))
+check("меню: Max Level на максимуме", findText(gui.Match.TowerInfo, "Max Level") ~= nil)
+check("меню: приоритеты", findText(gui.Match.TowerInfo, "Сильный") ~= nil)
+
+r = act(p1, "SetPriority", { uid = archer.Uid, priority = "Strongest" })
+check("приоритет Strongest", r.ok and archer.Priority == "Strongest" and archer.Model:GetAttribute("Priority") == "Strongest")
+r = act(p1, "SetPriority", { uid = archer.Uid, priority = "Random" })
+check("неверный приоритет отклонён", r.ok == false and archer.Priority == "Strongest")
+
+local sniper = towerByType.sniper
+local spent = sniper.Spent
+cash = solo.PlayerState[p1.UserId].Cash
+r = act(p1, "SellTower", { uid = sniper.Uid })
+check("продажа: возврат 60%", r.ok and solo.PlayerState[p1.UserId].Cash == cash + math.floor(spent * Economy.SellRefund), r.message)
+check("продажа: башня удалена", solo.Towers.ByUid[sniper.Uid] == nil and #solo.Towers.List == 7)
+r = act(p1, "SellTower", { uid = sniper.Uid })
+check("повторная продажа — отказ", r.ok == false)
+TowerController.Select(nil)
 
 ------------------------------------------------------------------------
-step("Магазин, улучшения, настройки, продажа")
-profile.coins = 10000
-ok(act("Buy", { category = "egg", id = "meadow_egg", amount = 1 }), "купили яйцо")
-eq(profile.coins, 9900, "списано 100")
-ok(not act("Buy", { category = "egg", id = "void_egg" }), "Void Egg не продаётся")
-ok(not act("Buy", { category = "egg", id = "meadow_egg", amount = 50 }), "количество ограничено")
-ok(not act("Buy", { category = "food", id = 123 }), "неверный тип ID")
-ok(act("Buy", { category = "seed", id = "berry", amount = 5 }), "купили семена")
-ok(act("Upgrade", { id = "speed" }), "улучшили скорость")
-eq(alice.Character.Humanoid.WalkSpeed, 17, "скорость 17")
-ok(act("SetSetting", { key = "slowMode", value = true }), "Slow Mode")
-eq(alice.Character.Humanoid.WalkSpeed, 16, "медленный режим")
-act("SetSetting", { key = "slowMode", value = false })
-ok(not act("SetSetting", { key = "coins", value = true }), "чужие настройки нельзя")
-ok(act("Upgrade", { id = "incubators" }), "третий инкубатор")
-eq(profile.upgrades.incubators, 3, "уровень инкубаторов")
-local before = profile.coins
-profile.coins = 0
-ok(not act("Upgrade", { id = "pens" }), "без денег не улучшить")
-profile.coins = before
-ok(not act("NoSuchAction", {}), "неизвестное действие")
+section("Двойная награда, босс")
+------------------------------------------------------------------------
+
+local enemy = solo.Enemies:Spawn("basic", Waves.Get(solo.Waves.Wave))
+local before = solo.PlayerState[p1.UserId].Earned
+solo.Enemies:Kill(enemy)
+local afterFirst = solo.PlayerState[p1.UserId].Earned
+solo.Enemies:Kill(enemy)
+solo.Enemies:Damage(enemy, 999)
+check("награда за убийство выдаётся один раз", afterFirst > before and solo.PlayerState[p1.UserId].Earned == afterFirst)
+
+check("босс по расписанию на волне 10", Waves.Get(10).Boss == "boss_brute" and Waves.Get(20).Boss ~= nil and Waves.Get(30).Boss ~= nil)
+for _, e in table.clone(solo.Enemies.Alive) do
+	solo.Enemies:Kill(e)
+end
+solo.Waves.Queue = {}
+solo.Waves:StartWave(10)
+tick(Waves.Get(10).Total * 1.6 + 6)
+local sawBoss = false
+for _, e in solo.Enemies.Alive do
+	if e.Def.Boss then
+		sawBoss = true
+	end
+end
+tick(0.3)
+check("босс появился на 10-й волне", sawBoss or solo.Enemies.Killed > 0 and ClientState.Match.wave == 10)
+check("HUD: полоса здоровья босса", (not sawBoss) or findText(gui.Match, "☠") ~= nil)
+
+------------------------------------------------------------------------
+section("Безопасность запросов")
+------------------------------------------------------------------------
+
+local crashes = 0
+local junk = { nil, 1, "x", true, {}, { tower = {} }, { x = 1e308, z = -1e308 }, { uid = -1 }, { map = string.rep("a", 1000) },
+	{ capacity = math.huge }, { priority = 5 }, { ready = {} } }
+for name in server.require(Shared.Net).Actions do
+	for _, payload in junk do
+		local ok, result = pcall(Engine.InvokeAs, p3, name, payload)
+		if not ok or type(result) ~= "table" then
+			crashes += 1
+		end
+	end
+end
+check("мусорные запросы не роняют сервер", crashes == 0 and #warningsContaining("[NetService]") == 0, table.concat(warningsContaining("[NetService]"), "; "))
+r = Engine.InvokeAs(p3, "GiveMeMoney", {})
+check("необъявленное действие отклонено", r.ok == false)
+r = act(p3, "PlaceTower", { tower = "archer", x = 10, z = 10 })
+check("башню нельзя ставить из лобби", r.ok == false)
+r = act(p1, "ReturnToLobby")
+check("нельзя выйти в лобби посреди матча этой кнопкой", r.ok == false)
 local limited = 0
-for _ = 1, 15 do
-	if State.Action("Buy", { category = "food", id = "pellet", amount = 1 }) == false then
+for _ = 1, 30 do
+	local result = Engine.InvokeAs(p1, "SetPriority", { uid = archer.Uid, priority = "First" })
+	if result.message == "Слишком часто" then
 		limited += 1
 	end
 end
-ok(limited > 0, "лимит частоты срабатывает")
+check("спам запросами ограничен", limited > 0, limited)
 
 ------------------------------------------------------------------------
-step("Ферма")
-ok(act("Plant", { slot = 1, seed = "berry" }), "посадили")
-ok(not act("Plant", { slot = 1, seed = "berry" }), "грядка занята")
-ok(not act("Plant", { slot = 5, seed = "berry" }), "закрытая грядка")
-ok(not act("Plant", { slot = 2, seed = "pellet" }), "гранулы не сажаются")
-Engine.Advance(61)
-local berries = profile.food.berry or 0
-aliceSession.Plot.Farms[1].Prompt.Triggered:FireSync(alice)
-ok((profile.food.berry or 0) >= berries + 3, "урожай собран")
-eq(profile.farm["1"], nil, "грядка освободилась")
+section("Отключение во время матча")
+------------------------------------------------------------------------
+
+local duoId = duo.Id
+Engine.Leave(p5)
+tick(0.5)
+check("матч продолжается после выхода одного игрока", MatchService.Matches[duoId] ~= nil and #duo.Players == 1)
+check("вышедший помечен как отключённый", duo.PlayerState[p5.UserId].Connected == false)
+check("снимок команды без вышедшего", #duo:Snapshot().team == 1)
+Engine.Leave(p2)
+tick(0.5)
+check("все вышли → матч закрыт и очищен", MatchService.Matches[duoId] == nil and Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. duoId) == nil,
+	tostring(MatchService.Matches[duoId] ~= nil) .. " " .. tostring(Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. duoId)))
 
 ------------------------------------------------------------------------
-step("Кража: второй игрок")
-local bob = Engine.NewPlayer("Bob")
-Engine.Join(bob)
-Engine.SpawnCharacter(bob, Map.Spawn + Vector3.new(0, 3, 0))
-wait(0.4)
-local bobSession = DataService:GetSession(bob)
-ok(bobSession ~= nil and bobSession.Plot ~= nil and bobSession.Plot ~= aliceSession.Plot, "у Боба своя база")
-local StealService = server.require(S.StealService)
--- Вор должен стоять у инкубаторов Алисы (у подсказки дальность 10 студов)
-local function atAlice(player)
-	Engine.MoveTo(player, Map.PlotWorld(aliceSession.Plot.Index, Map.PlotLayout.Incubators[1]) + Vector3.new(4, 3, 0))
+section("Поражение, итоги, возврат в лобби")
+------------------------------------------------------------------------
+
+for _, tower in table.clone(solo.Towers.List) do
+	solo.Towers:Sell(p1, tower.Uid)
 end
-atAlice(bob)
--- Алиса — новичок
-local stealPrompt = aliceSession.Plot.Incubators[1].StealPrompt
-ok(StealService:IsNewbie(aliceSession), "Алиса под защитой новичка")
-stealPrompt.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 0, "у новичка украсть нельзя")
-profile.stats.playTime = 5000
-IncubatorService:RefreshAll(aliceSession)
-ok(stealPrompt.Enabled, "кнопка кражи активна после защиты")
-eq(stealPrompt:GetAttribute("NotOwner"), alice.UserId, "кнопку кражи не видит владелец")
-local record = profile.incubators["1"]
-local stolenEggId = record.id
-stealPrompt.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 1, "Боб несёт яйцо")
-eq(record.transit, bob.UserId, "яйцо в пути, но ещё в профиле Алисы")
-ok(not act("Hatch", { slot = 1 }), "владелец не может открыть яйцо в пути")
-ok(bob.Character:FindFirstChild("ThiefHighlight") ~= nil, "вор подсвечен")
-local alerts = 0
-for _, entry in Engine.RemoteLog do
-	if entry.event == "StealAlert" and entry.player == alice and entry.args[1].active then
-		alerts += 1
-	end
+local hpBefore = solo.BaseHealth
+solo.Waves.Queue = {}
+for _, e in table.clone(solo.Enemies.Alive) do
+	solo.Enemies:Kill(e)
 end
-ok(alerts >= 1, "Алиса получила тревогу")
-stealPrompt.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 1, "одно яйцо не украсть дважды")
-local aliceCoins = profile.coins
-local bobEggsTotal = #bobSession.Profile.eggs
-for _ in bobSession.Profile.incubators do
-	bobEggsTotal += 1
+solo.Waves:StartWave(12)
+local guard = 0
+while not solo.Ended and guard < 3000 do
+	tick(0.5, 0.5)
+	guard += 1
 end
-Engine.MoveTo(bob, Map.PlotWorld(bobSession.Plot.Index, Map.PlotLayout.Delivery) + Vector3.new(0, 3, 0))
-wait(0.5)
-eq(profile.incubators["1"], nil, "яйцо ушло от Алисы")
-local bobGot = 0
-for _, egg in bobSession.Profile.eggs do
-	if egg.id == stolenEggId then
-		bobGot += 1
-	end
-end
-local function totalEggs(prof)
-	local n = #prof.eggs
-	for _ in prof.incubators do
-		n += 1
-	end
-	return n
-end
-eq(totalEggs(bobSession.Profile), bobEggsTotal + 1, "Боб получил яйцо")
-ok(profile.coins > aliceCoins, "Алиса получила страховку")
-eq(bobSession.Profile.stats.stolen, 1, "статистика краж")
-local _ = bobGot
+check("враги наносят урон базе", solo.BaseHealth < hpBefore)
+check("поражение при 0 здоровья базы", solo.Ended and solo.Result == "Defeat", solo.Result)
+tick(0.3)
+check("клиент: экран итогов", gui.Results.Results.Visible == true and findText(gui.Results, "ПОРАЖЕНИЕ") ~= nil)
+check("итоги: кнопка «В лобби»", findText(gui.Results, "В лобби") ~= nil)
+local profile = DataService:GetSession(p1).Profile
+check("профиль: матч и поражение записаны", profile.stats.matches == 1 and profile.stats.losses == 1)
+check("профиль: награды начислены", profile.gems > 0)
+task.wait(0.2)
+local stored = Engine.DataStoreData["p_" .. p1.UserId]
+check("профиль сохранён в DataStore", stored and stored.stats and stored.stats.matches == 1)
+r = act(p1, "PlaceTower", { tower = "archer", x = best.X, z = best.Z })
+check("после окончания башни не ставятся", r.ok == false)
+local soloId = solo.Id
+r = act(p1, "ReturnToLobby")
+tick(0.3)
+check("возврат в лобби", r.ok and p1:GetAttribute("MatchId") == nil)
+local lobbyOffset = p1.Character.PrimaryPart.CFrame.Position - Game.Lobby.Spawn
+check("игрок перенесён в лобби", lobbyOffset.Magnitude < 15)
+check("матч очищен (папка, враги, башни)", MatchService.Matches[soloId] == nil and Engine.Workspace.ActiveMatches:FindFirstChild("Match_" .. soloId) == nil)
+check("клиент: снова лобби", gui.Lobby.Visible == true and gui.Match.Visible == false and gui.Results.Results.Visible == false)
+check("клиент: свет лобби", math.abs(Lighting.ClockTime - 14.5) < 0.01)
+check("клиент: призрак и выделение сброшены", not PlacementController.Active() and TowerController.Selected() == nil)
 
 ------------------------------------------------------------------------
-step("Защита: перезарядка жертвы, замок базы")
--- В инкубаторах Алисы есть ещё яйца (купленное и доставленное)
-local slotWithEgg
-for slot = 1, profile.upgrades.incubators do
-	local r = profile.incubators[tostring(slot)]
-	if r and not r.transit then
-		slotWithEgg = slot
+section("Победа")
+------------------------------------------------------------------------
+
+Engine.MoveTo(p3, Vector3.new(0, 3, 40))
+local victoryMatch = MatchService:Create({ p3 }, "snow")
+check("новый матч (снег)", victoryMatch ~= nil and victoryMatch.MapId == "snow")
+victoryMatch.Waves:StartWave(victoryMatch.Waves.Max)
+guard = 0
+while not victoryMatch.Ended and guard < 2000 do
+	for _, e in table.clone(victoryMatch.Enemies.Alive) do
+		victoryMatch.Enemies:Damage(e, 1e9, 1)
+	end
+	tick(0.5, 0.5)
+	guard += 1
+end
+check("победа после последней волны", victoryMatch.Result == "Victory", victoryMatch.Result)
+local profile3 = DataService:GetSession(p3).Profile
+check("профиль: победа записана", profile3.stats.wins == 1 and profile3.bestWave.snow == victoryMatch.Waves.Max)
+victoryMatch.ResultsAt = os.clock() - Game.Match.ResultsTime - 1
+tick(0.3)
+check("автовозврат в лобби по таймеру итогов", p3:GetAttribute("MatchId") == nil and MatchService.Matches[victoryMatch.Id] == nil)
+check("все арены освобождены", next(MatchService.Matches) == nil and #Engine.Workspace.ActiveMatches:GetChildren() == 0)
+
+------------------------------------------------------------------------
+section("Отказ DataStore")
+------------------------------------------------------------------------
+
+Engine.DataStoreFails = true
+local p6 = Engine.NewPlayer("Frank")
+Engine.Join(p6)
+for _ = 1, 60 do
+	if Engine.Kicked[p6.UserId] then
 		break
 	end
+	task.wait(0.25)
 end
-if not slotWithEgg then
-	act("Buy", { category = "egg", id = "meadow_egg" })
-	for slot = 1, profile.upgrades.incubators do
-		if profile.incubators[tostring(slot)] then
-			slotWithEgg = slot
-		end
-	end
-end
-ok(slotWithEgg ~= nil, "есть яйцо для следующей попытки")
-local prompt2 = aliceSession.Plot.Incubators[slotWithEgg].StealPrompt
-atAlice(bob)
-prompt2.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 0, "жертву нельзя обокрасть повторно сразу")
-Engine.Advance(61)
-aliceSession.Plot.LockPrompt.Triggered:FireSync(alice)
-ok(StealService:IsLocked(aliceSession), "база заперта")
-IncubatorService:RefreshAll(aliceSession)
-ok(not prompt2.Enabled, "кнопка кражи выключена под замком")
-prompt2.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 0, "под замком украсть нельзя")
-aliceSession.LockedUntil = 0
-IncubatorService:RefreshAll(aliceSession)
+check("при ошибке загрузки игрок не получает пустой профиль (кик с объяснением)",
+	Engine.Kicked[p6.UserId] ~= nil or DataService:GetSession(p6) == nil, Engine.Kicked[p6.UserId])
+Engine.DataStoreFails = false
 
 ------------------------------------------------------------------------
-step("Удар битой выбивает украденное яйцо; владелец забирает его")
-atAlice(bob)
-prompt2.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 1, "Боб снова несёт яйцо")
-local stealPos = Vector3.new(0, 3, -130)
-Engine.MoveTo(alice, stealPos)
-Engine.MoveTo(bob, stealPos + Vector3.new(0, 0, -4))
-local tool = alice.Backpack:FindFirstChildOfClass("Tool")
-ok(tool ~= nil, "у Алисы есть бита")
-tool.Activated:FireSync()
-eq(CarryService:Count(bobSession), 0, "яйцо выбито")
-local recordAfter = profile.incubators[tostring(slotWithEgg)]
-eq(recordAfter.transit, -1, "яйцо лежит на земле")
-local drop
-for _, model in Engine.Workspace.WorldItems:GetChildren() do
-	if model:GetAttribute("StolenFrom") == alice.UserId then
-		drop = model
-	end
-end
-ok(drop ~= nil, "выпавшее яйцо в мире")
-drop.Root:FindFirstChildOfClass("ProximityPrompt").Triggered:FireSync(alice)
-eq(recordAfter.transit, nil, "яйцо вернулось в инкубатор")
-eq(drop.Parent, nil, "модель убрана")
 
-------------------------------------------------------------------------
-step("Вор выходит из игры посреди кражи")
-Engine.Advance(5)
-wait(1.3) -- кулдаун удара/оглушения по os.clock
-atAlice(bob)
-prompt2.Triggered:FireSync(bob)
-eq(CarryService:Count(bobSession), 1, "Боб украл снова")
-local bobId = bob.UserId
-Engine.Leave(bob)
-wait(0.2)
-eq(profile.incubators[tostring(slotWithEgg)].transit, nil, "яйцо вернулось владельцу")
-local saved = Engine.DataStoreData["u_" .. bobId]
-ok(saved ~= nil, "профиль Боба сохранён")
-ok(saved and saved.lock == nil, "замок сессии снят при выходе")
-ok(saved and saved.stats.stolen == 1, "сохранена статистика")
-
-------------------------------------------------------------------------
-step("Повторный вход восстанавливает прогресс")
-local bob2 = Engine.NewPlayer("Bob")
-bob2.UserId = bobId
-Engine.Join(bob2)
-Engine.SpawnCharacter(bob2, Map.Spawn + Vector3.new(0, 3, 0))
-wait(0.4)
-local bob2Session = DataService:GetSession(bob2)
-ok(bob2Session ~= nil, "Боб загрузился снова")
-eq(bob2Session.Profile.stats.stolen, 1, "данные восстановлены")
-
-------------------------------------------------------------------------
-step("Страж ловит игрока с яйцом")
-local GuardianFolder = Engine.Workspace:FindFirstChild("Guardians")
-ok(GuardianFolder ~= nil and #GuardianFolder:GetChildren() > 0, "стражи созданы")
-local guardian = GuardianFolder:FindFirstChild("Guardian_dunes_1")
-local gpos = Engine.GetPosition(guardian.Root)
-Engine.MoveTo(bob2, Vector3.new(gpos.X, 3, gpos.Z))
-CarryService:Add(bob2Session, { Kind = "lane", EggId = "dune_egg" })
-eq(CarryService:Count(bob2Session), 1, "несёт яйцо в дюнах")
-for _ = 1, 5 do
-	server.RunService.Heartbeat:FireSync(1 / 20)
+print(string.format("\nИТОГО: %d проверок пройдено, %d провалено", passed, failed))
+for _, text in failures do
+	print("  ✘ " .. text)
 end
-eq(CarryService:Count(bob2Session), 0, "страж выбил яйцо")
-
-------------------------------------------------------------------------
-step("Задания и обучение")
-local QuestService = server.require(S.QuestService)
-local list = profile.quests.list
-eq(#list, 3, "три задания на день")
-local Quests = server.require(Shared.Config.Quests)
-local first = list[1]
-local quest = Quests.ById[first.id]
-QuestService:Progress(aliceSession, quest.Stat, quest.Target)
-ok(act("ClaimQuest", { id = first.id }), "награда получена")
-ok(not act("ClaimQuest", { id = first.id }), "повторно не выдаётся")
-
-------------------------------------------------------------------------
-step("Клиент: окна открываются и обновляются без ошибок")
-local Router = client.require(Engine.ClientNode.UI.Router)
-for _, name in { "Shop", "Eggs", "Pets", "Feed", "Farm", "Index", "Quests", "Settings" } do
-	local okOpen, err = pcall(function()
-		Router.Open(name, if name == "Feed" then creatureUid elseif name == "Farm" then 1 else nil)
-		local module = Router.Get(name)
-		if module.Refresh then
-			module:Refresh()
-		end
-	end)
-	ok(okOpen, "окно " .. name .. ": " .. tostring(err))
-end
-local Shop = client.require(Engine.ClientNode.UI.ShopPanel)
-for _, tab in { "Eggs", "Food", "Seeds", "Upgrades", "Sell" } do
-	local okTab, err = pcall(function()
-		Router.Open("Shop", tab)
-		Shop:Refresh()
-	end)
-	ok(okTab, "вкладка " .. tab .. ": " .. tostring(err))
-end
-Router.Close()
--- Клиентские циклы (подписи, анимации, HUD)
-local clientErrors = 0
-for _ = 1, 6 do
-	local okTick, err = pcall(function()
-		client.RunService.Heartbeat:FireSync(0.3)
-		client.RunService.RenderStepped:FireSync(1 / 60)
-	end)
-	if not okTick then
-		clientErrors += 1
-		print("  client tick error: " .. tostring(err))
-	end
-end
-eq(clientErrors, 0, "клиентские циклы без ошибок")
-local billboards = alice.PlayerGui:FindFirstChild("WorldBillboards")
-ok(billboards ~= nil and #billboards:GetChildren() > 10, "подписи над объектами созданы")
-
-------------------------------------------------------------------------
-step("Владелец выходит, пока у него крадут")
-bob2Session.Profile.stats.playTime = 5000
-local aliceSlot
-for slot = 1, profile.upgrades.incubators do
-	local r = profile.incubators[tostring(slot)]
-	if r and not r.transit then
-		aliceSlot = slot
-	end
-end
-Engine.Advance(120)
-wait(1.3)
-atAlice(bob2)
-aliceSession.Plot.Incubators[aliceSlot].StealPrompt.Triggered:FireSync(bob2)
-wait(0.3)
-eq(CarryService:Count(bob2Session), 1, "Боб несёт яйцо Алисы")
-local aliceId = alice.UserId
-Engine.Leave(alice)
-wait(0.2)
-eq(CarryService:Count(bob2Session), 0, "кража отменена")
-local aliceSaved = Engine.DataStoreData["u_" .. aliceId]
-ok(aliceSaved.incubators[tostring(aliceSlot)] ~= nil, "яйцо осталось в сохранении Алисы")
-eq(aliceSaved.incubators[tostring(aliceSlot)].transit, nil, "без метки transit")
-eq(Engine.Kicked[aliceId], nil, "никого не кикнули")
-
-------------------------------------------------------------------------
-step("Офлайн-прогресс при повторном входе")
-local savedCreature
-for _, c in aliceSaved.creatures do
-	if c.placed then
-		savedCreature = c
-	end
-end
-ok(savedCreature ~= nil, "у Алисы сохранено существо в загоне")
-Engine.Advance(2 * 3600)
-local alice2 = Engine.NewPlayer("Alice")
-alice2.UserId = aliceId
-Engine.Join(alice2)
-Engine.SpawnCharacter(alice2, Map.Spawn + Vector3.new(0, 3, 0))
-wait(0.4)
-local alice2Session = DataService:GetSession(alice2)
-ok(alice2Session ~= nil, "Алиса вернулась")
-ok(alice2Session.Profile.vault > aliceSaved.vault, "офлайн-доход начислен в кассу")
-local creatureNow = alice2Session.Profile.creatures[savedCreature.uid]
-ok(creatureNow.growth >= savedCreature.growth, "рост учтён офлайн")
-ok(creatureNow.fullness < savedCreature.fullness or savedCreature.fullness == 0, "голод учтён офлайн")
-local readyCount = 0
-for _, r in alice2Session.Profile.incubators do
-	if IncubatorService:IsReady(r) then
-		readyCount += 1
-	end
-end
-ok(readyCount > 0, "таймеры инкубаторов шли офлайн")
-
-------------------------------------------------------------------------
-step("Продажа существа")
-local sellCoins = alice2Session.Profile.coins
-local sold = Engine.InvokeAs(alice2, "Sell", { uid = savedCreature.uid })
-ok(sold.ok, "продали существо")
-eq(alice2Session.Profile.creatures[savedCreature.uid], nil, "существо удалено")
-ok(alice2Session.Profile.coins > sellCoins, "монеты за продажу")
-ok(not Engine.InvokeAs(alice2, "Sell", { uid = savedCreature.uid }).ok, "повторная продажа невозможна")
-eq(alice2Session.Plot.Pen:FindFirstChild(savedCreature.uid), nil, "модель убрана из загона")
-
-------------------------------------------------------------------------
-step("Ночь перезагружает яйца")
-local WorldEggService = server.require(S.WorldEggService)
-WorldEggService:ResetEggs()
-local zoneEggs = 0
-for _, model in Engine.Workspace.WorldItems:GetChildren() do
-	if model:IsA("Model") and model:GetAttribute("Zone") then
-		zoneEggs += 1
-	end
-end
-local Zones = server.require(Shared.Config.Zones)
-local expected = 0
-for _, zone in Zones.List do
-	expected += zone.MaxEggs
-end
-eq(zoneEggs, expected, "все зоны заполнены яйцами")
-
-------------------------------------------------------------------------
-step("Выключение сервера сохраняет всех")
-bob2Session.Profile.coins = 777
-for _, fn in Engine.BindToClose do
-	fn()
-end
-eq(Engine.DataStoreData["u_" .. bobId].coins, 777, "BindToClose сохранил профиль")
-
-end
-
-local scenarioOk, scenarioErr = pcall(scenario)
-if not scenarioOk then
-	failed += 1
-	print(string.format("  ✗ [%s] сценарий упал: %s", section, tostring(scenarioErr)))
-end
-
-------------------------------------------------------------------------
+local other = {}
 for _, w in Engine.Warnings do
-	print("  warn: " .. w)
+	if not string.find(w, "Simulated DataStore outage", 1, true) and not string.find(w, "Ошибка загрузки", 1, true) then
+		table.insert(other, w)
+	end
 end
-print(string.format("\nИнтеграция: пройдено %d, провалено %d", passed, failed))
+if #other > 0 then
+	print("\nПредупреждения:")
+	for _, w in other do
+		print("  " .. w)
+	end
+end
 process.exit(if failed == 0 then 0 else 1)

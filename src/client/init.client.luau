@@ -1,59 +1,35 @@
 --[[
-	Точка входа клиента: состояние, интерфейс и локальные системы мира.
+	Точка входа клиента. Порядок важен: сначала состояние и корневой GUI,
+	затем мир (эффекты, враги, башни), затем интерфейсы лобби и матча.
 ]]
 
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 
-local State = require(script:WaitForChild("State"))
-local UI = script:WaitForChild("UI")
-local World = script:WaitForChild("World")
-
-local Router = require(UI.Router)
-local HUD = require(UI.HUD)
+local State = require(script.State)
+local Root = require(script.UI.Root)
+local Notifications = require(script.UI.Notifications)
+local Controllers = script.Controllers
 
 State.Init()
-local screen = Router.Init()
+local screen = Root.Init()
+Notifications.Init(screen)
 
--- Окна (одновременно открыто только одно)
-Router.Register("Shop", require(UI.ShopPanel))
-Router.Register("Eggs", require(UI.EggsPanel))
-Router.Register("Pets", require(UI.PetsPanel))
-Router.Register("Feed", require(UI.FeedPanel))
-Router.Register("Farm", require(UI.FarmPanel))
-Router.Register("Index", require(UI.IndexPanel))
-Router.Register("Quests", require(UI.QuestsPanel))
-Router.Register("Settings", require(UI.SettingsPanel))
+require(Controllers.Effects).Init()
+require(Controllers.EnemyRenderer).Init()
+require(Controllers.TowerAnimator).Init()
+require(Controllers.FxController).Init()
+require(Controllers.PlacementController).Init()
+require(Controllers.LightingController).Init()
+require(Controllers.LobbyController).Init(screen)
+require(Controllers.HUDController).Init(screen)
+require(Controllers.ResultsController).Init(screen)
 
--- Постоянные слои
-HUD:Build(screen)
-HUD:Start()
-require(UI.Notifications):Build(screen)
-require(UI.StealAlert):Build(screen)
-require(UI.Tutorial):Build(screen)
-require(UI.HatchReveal):Build(screen)
-
-require(World.Prompts).Start()
-require(World.Billboards).Start()
-require(World.Animator).Start()
-require(World.Effects).Start()
-
-State.Changed.Event:Connect(function()
-	Router.RefreshAll()
-end)
-
--- Список игроков не нужен: HUD показывает всё важное
-pcall(function()
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
-end)
-
--- Сервер присылает снимок после загрузки; на случай гонки запрашиваем его сами
+-- Профиль и (если игрок переподключился в матч) снимок матча
 task.spawn(function()
 	local player = Players.LocalPlayer
-	while not player:GetAttribute("Loaded") do
-		task.wait(0.25)
+	local waited = 0
+	while not player:GetAttribute("Loaded") and waited < 30 do
+		waited += task.wait(0.25)
 	end
-	State.Fire("RequestState")
+	State.Action("RequestState")
 end)
-
-print("[Client] Steal and Grow an Egg загружен")

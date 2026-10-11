@@ -141,6 +141,9 @@ end
 -- Parent = nil, события отключаются. Встроенный Destroy в Lune не переопределить,
 -- поэтому загрузчик переписывает «x:Destroy()» на Engine.Destroy(x).
 function Engine.Destroy(instance)
+	if type(instance) == "table" and type(instance.Destroy) == "function" then
+		return instance:Destroy() -- метод Lua-объекта (например, Match:Destroy), а не инстанса
+	end
 	if typeof(instance) ~= "Instance" then
 		return
 	end
@@ -164,6 +167,52 @@ end
 
 roblox.implementMethod("Instance", "GetPropertyChangedSignal", function(self, property)
 	return signalOf(self, "Changed:" .. property)
+end)
+
+-- Атрибуты: нативный SetAttribute в Lune не шлёт сигналов, поэтому загрузчик
+-- переписывает «x:SetAttribute(...)» на Engine.SetAttribute (см. transformSource)
+roblox.implementMethod("Instance", "GetAttributeChangedSignal", function(self, name)
+	return signalOf(self, "Attr:" .. name)
+end)
+function Engine.SetAttribute(instance, name, value)
+	local old = instance:GetAttribute(name)
+	instance:SetAttribute(name, value)
+	if old ~= value then
+		signalOf(instance, "Attr:" .. name):Fire()
+		signalOf(instance, "AttributeChanged"):Fire(name)
+	end
+end
+
+-- Камера: лучи через точку экрана с учётом FieldOfView и соотношения сторон
+local function screenRay(camera, x, y)
+	local viewport = camera.ViewportSize
+	local h = math.tan(math.rad(camera.FieldOfView) / 2)
+	local nx = (x / viewport.X) * 2 - 1
+	local ny = 1 - (y / viewport.Y) * 2
+	local cf = camera.CFrame
+	local direction = (cf.RightVector * (nx * h * viewport.X / viewport.Y) + cf.UpVector * (ny * h) + cf.LookVector).Unit
+	return roblox.Ray.new(cf.Position, direction)
+end
+-- Производные свойства вложений (в Lune не вычисляются)
+local function attachmentWorld(self)
+	local parent = self.Parent
+	local base = if parent and parent:IsA("BasePart") then parent.CFrame else CFrame.new()
+	return base * self.CFrame
+end
+function Engine.GetWorldPosition(value)
+	if typeof(value) == "Instance" and value:IsA("Attachment") then
+		return attachmentWorld(value).Position
+	end
+	return value.WorldPosition
+end
+roblox.implementMethod("Camera", "ViewportPointToRay", screenRay)
+roblox.implementMethod("Camera", "ScreenPointToRay", screenRay)
+Engine.RaycastHook = nil :: any
+roblox.implementMethod("Workspace", "Raycast", function(_, origin, direction, params)
+	if Engine.RaycastHook then
+		return Engine.RaycastHook(origin, direction, params)
+	end
+	return nil
 end)
 
 local specialChildren = {}
@@ -397,6 +446,8 @@ local DataStoreService = {
 }
 
 Engine.BindToClose = {}
+Engine.MouseLocation = roblox.Vector2.new(640, 360)
+Engine.KeysDown = {}
 
 -- Сервисы конкретной «стороны» (сервер или клиент)
 local function realmServices(isServer: boolean)
@@ -440,7 +491,16 @@ local function realmServices(isServer: boolean)
 			end,
 		},
 		ProximityPromptService = { PromptTriggered = Signal.new() },
-		UserInputService = { InputBegan = Signal.new(), TouchEnabled = false, KeyboardEnabled = true },
+		UserInputService = {
+			InputBegan = Signal.new(), InputChanged = Signal.new(), InputEnded = Signal.new(),
+			TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true,
+			GetMouseLocation = function()
+				return Engine.MouseLocation
+			end,
+			IsKeyDown = function(_, key)
+				return Engine.KeysDown[key] == true
+			end,
+		},
 		StarterGui = { SetCoreGuiEnabled = function() end },
 	}
 	local game = setmetatable({
@@ -524,15 +584,22 @@ local function transformSource(source: string): string
 				line = string.format("%s__setpos(%s, %s)", indent, target, value)
 			end
 		else
-			for property, fn in { Position = "__getpos", AbsoluteSize = "__getabs" } do
+			for property, fn in { Position = "__getpos", AbsoluteSize = "__getabs", WorldPosition = "__getworldpos" } do
 				line = string.sub((string.gsub(" " .. line .. " ", "([^%w_%.:%)%]\"'])([%a_][%w_]*[%w_%.]-)%." .. property .. "([^%w_])",
 					function(before, chain, after)
+						if after == "(" then
+							return nil -- вызов функции с именем Position(...) — не свойство
+						end
 						return before .. fn .. "(" .. chain .. ")" .. after
 					end)), 2, -2)
 			end
 		end
-		line = string.gsub(line, "([%w_][%w_%.%[%]\"]*):Destroy%(%)", "__destroy(%1)")
-		line = string.gsub(line, "([%w_][%w_%.%[%]\"]*):ClearAllChildren%(%)", "__clear(%1)")
+		-- Определения методов (function Match:Destroy()) не трогаем — только вызовы
+		if not string.match(line, "^%s*function%s") and not string.match(line, "^%s*local%s+function%s") then
+			line = string.gsub(line, "([%w_][%w_%.%[%]\"]*):Destroy%(%)", "__destroy(%1)")
+			line = string.gsub(line, "([%w_][%w_%.%[%]\"]*):ClearAllChildren%(%)", "__clear(%1)")
+			line = string.gsub(line, "([%w_][%w_%.%[%]\"]*):SetAttribute%(", "__setattr(%1, ")
+		end
 		table.insert(lines, line)
 	end
 	return table.concat(lines, "\n")
@@ -623,7 +690,11 @@ function Engine.Realm(isServer: boolean)
 			task = task,
 			os = simOs,
 			warn = function(...)
-				table.insert(Engine.Warnings, table.concat(table.pack(...) :: any, " ", 1, select("#", ...)))
+				local parts = {}
+				for i = 1, select("#", ...) do
+					parts[i] = tostring((select(i, ...)))
+				end
+				table.insert(Engine.Warnings, table.concat(parts, " "))
 			end,
 			print = function() end,
 		}, { __index = getfenv(0) })
@@ -632,6 +703,8 @@ function Engine.Realm(isServer: boolean)
 		env.__getabs = Engine.GetAbsoluteSize
 		env.__destroy = Engine.Destroy
 		env.__clear = Engine.ClearAllChildren
+		env.__setattr = Engine.SetAttribute
+		env.__getworldpos = Engine.GetWorldPosition
 		local chunk = luau.load(transformSource(files[file]), { debugName = file, environment = env })
 		local result = chunk()
 		cache[path] = if result == nil then true else result

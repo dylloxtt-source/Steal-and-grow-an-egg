@@ -1,16 +1,16 @@
 --[[
-	Сетевой контракт. Сервер создаёт папку Remotes, клиент её ждёт.
+	Сетевой контракт. Сервер создаёт ReplicatedStorage.Remotes, клиент ждёт.
 
-	Action (RemoteFunction, клиент -> сервер): Action:InvokeServer(name, payload)
-	  возвращает { ok = boolean, message = string?, data = any? }.
-	  Все действия проверяются на сервере (см. server/Services/NetService).
+	Action (RemoteFunction, клиент → сервер): Action:InvokeServer(name, payload)
+	  → { ok, message, data }. Лимиты частоты — ниже (вызовов в секунду).
 
-	События сервер -> клиент:
-	  State      (profileView)            — полный снимок профиля для UI
-	  Notify     (text, kind)             — всплывающее уведомление
-	  Hatched    (result)                 — показ вылупления
-	  StealAlert (info)                   — у вас крадут / вор пойман
-	  Effect     (kind, data)             — визуальные эффекты (оглушение и т.п.)
+	События сервер → клиент:
+	  LobbyState  (elevators)      — состояние всех лифтов
+	  MatchState  (snapshot)       — снимок матча для его участников
+	  MatchFx     (list)           — пачка визуальных событий за тик
+	  MatchEnded  (results)        — итоги матча
+	  Profile     (profileView)    — постоянный прогресс
+	  Notify      (text, kind)     — уведомление
 ]]
 
 local RunService = game:GetService("RunService")
@@ -20,26 +20,22 @@ local Net = {}
 
 Net.FolderName = "Remotes"
 Net.Function = "Action"
-Net.Events = { "State", "Notify", "Hatched", "StealAlert", "Effect" }
+Net.Events = { "LobbyState", "MatchState", "MatchFx", "MatchEnded", "Profile", "Notify" }
 
--- Имена действий, допустимых с клиента, и лимит вызовов в секунду
 Net.Actions = {
-	Incubate = 4,
-	Hatch = 4,
-	HatchAll = 1,
-	SkipHatch = 2,
-	Buy = 6,
-	Upgrade = 4,
-	Feed = 6,
-	Place = 4,
-	Store = 4,
-	Sell = 4,
-	Plant = 4,
-	Harvest = 4,
-	ClaimQuest = 2,
-	SetSetting = 3,
-	Tutorial = 2,
-	RequestState = 1,
+	ElevatorSetMap = 4,
+	ElevatorSetCapacity = 4,
+	ElevatorReady = 4,
+	ElevatorLeave = 2,
+	ElevatorStart = 2,
+	PlaceTower = 6,
+	UpgradeTower = 6,
+	SellTower = 4,
+	SetPriority = 6,
+	VoteSpeed = 2,
+	VoteSkip = 2,
+	ReturnToLobby = 1,
+	RequestState = 2,
 }
 
 local folder: Folder? = nil

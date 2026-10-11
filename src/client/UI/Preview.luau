@@ -1,61 +1,48 @@
 --[[
-	Превью моделей во ViewportFrame (яйца и существа) для карточек UI.
+	Превью моделей во ViewportFrame (иконки башен, врагов в коллекции).
+	Модель строится тем же кодом, что и в игре, поэтому иконка совпадает с башней.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local EggModel = require(Shared.Visual.EggModel)
-local CreatureModel = require(Shared.Visual.CreatureModel)
+local TowerModel = require(Shared.Visual.TowerModel)
+local EnemyModel = require(Shared.Visual.EnemyModel)
 
 local Preview = {}
 
-local function frame(model: Model, parent: Instance, size: UDim2, position: UDim2?, silhouette: boolean?): ViewportFrame
+local function frame(model: Model, parent: Instance, size: UDim2, position: UDim2?, focus: string?): ViewportFrame
 	local viewport = Instance.new("ViewportFrame")
 	viewport.BackgroundTransparency = 1
 	viewport.Size = size
 	viewport.Position = position or UDim2.new()
-	viewport.Ambient = Color3.fromRGB(170, 170, 180)
-	viewport.LightColor = Color3.fromRGB(255, 255, 255)
-	viewport.LightDirection = Vector3.new(-1, -1.5, -1)
-
+	viewport.Ambient = Color3.fromRGB(160, 160, 170)
+	viewport.LightColor = Color3.fromRGB(255, 250, 240)
+	viewport.LightDirection = Vector3.new(-0.6, -1, -0.8)
 	for _, d in model:GetDescendants() do
-		if d:IsA("ParticleEmitter") or d:IsA("PointLight") or d:IsA("ProximityPrompt") or d:IsA("BillboardGui") then
+		if d:IsA("PointLight") or d:IsA("ParticleEmitter") or d:IsA("Humanoid") then
 			d:Destroy()
-		elseif silhouette and d:IsA("BasePart") then
-			d.Color = Color3.fromRGB(20, 20, 26)
-			d.Material = Enum.Material.SmoothPlastic
-			d.Reflectance = 0
 		end
 	end
-	local cf, extents = model:GetBoundingBox()
-	model:PivotTo(model:GetPivot() - cf.Position)
+	model:PivotTo(CFrame.new(0, 3, 0))
 	model.Parent = viewport
-
 	local camera = Instance.new("Camera")
-	camera.FieldOfView = 30
-	local radius = extents.Magnitude / 2
-	local distance = radius / math.tan(math.rad(camera.FieldOfView / 2)) * 1.05
-	local direction = Vector3.new(0.6, 0.35, -1).Unit
-	camera.CFrame = CFrame.lookAt(direction * distance, Vector3.zero)
+	camera.FieldOfView = 32
+	local target = if focus == "upper" then Vector3.new(0, 4.2, 0) else Vector3.new(0, 3, 0)
+	local distance = if focus == "upper" then 9 else 13
+	camera.CFrame = CFrame.lookAt(target + Vector3.new(-0.45, 0.25, -1).Unit * distance, target)
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
 	viewport.Parent = parent
 	return viewport
 end
 
-function Preview.Egg(eggId: string, parent: Instance, size: UDim2, position: UDim2?): ViewportFrame
-	return frame(EggModel.Build(eggId, 1), parent, size, position)
+function Preview.Tower(towerId: string, level: number, parent: Instance, size: UDim2, position: UDim2?, focus: string?): ViewportFrame
+	return frame(TowerModel.Build(towerId, level), parent, size, position, focus)
 end
 
-function Preview.Creature(speciesId: string, options: any?, parent: Instance, size: UDim2, position: UDim2?, silhouette: boolean?): ViewportFrame
-	local opts = options or {}
-	local model = CreatureModel.Build(speciesId, {
-		Stage = opts.Stage or "Adult",
-		Mutation = opts.Mutation,
-		Size = 1,
-	})
-	return frame(model, parent, size, position, silhouette)
+function Preview.Enemy(enemyId: string, parent: Instance, size: UDim2, position: UDim2?): ViewportFrame
+	return frame(EnemyModel.Build(enemyId), parent, size, position, nil)
 end
 
 return Preview
