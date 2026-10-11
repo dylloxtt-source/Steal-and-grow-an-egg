@@ -82,6 +82,12 @@
 
 Росомаха — только R6-тело в цветах референса и когти на обеих руках, без костюма, маски и аксессуаров.
 
+![Башни: уровни 1, 3, 5](docs/preview/models_towers.jpg)
+
+*Схема моделей из кода игры (уровни 1/3/5), нарисованная упрощённым 3D-рендером `tools/preview/models.js`:
+видно позы и хват оружия. Вид сбоку — [models_towers_side.jpg](docs/preview/models_towers_side.jpg),
+противники — [models_enemies.jpg](docs/preview/models_enemies.jpg). Материалы, лица и свет — только в Studio.*
+
 ## Противники
 
 Grunt, Runner (быстрый), Tank (много HP), Knight (броня), Mender (регенерация), Guard (щит),
@@ -98,6 +104,10 @@ Medic (лечит соседей), Shade (скрытный — виден тол
 | Snow Valley | ★★★☆☆ | 100 | длинная спираль, замёрзший ручей, крепость |
 | Forgotten Ruins | ★★★☆☆ | 100 | колонны, разрушенные стены, сумерки |
 | Neon City | ★★★★☆ | 100 | ночной город, неон, контейнеры |
+
+![План карт](docs/preview/models_maps_plan.jpg)
+
+*План карт сверху из кода `MapBuilder` (красный пунктир — маршрут врагов). Лобби — [models_lobby.jpg](docs/preview/models_lobby.jpg).*
 
 ## Структура
 
@@ -118,6 +128,7 @@ lune run tests/integration.luau   # 155 проверок: сервер + кли�
 lune run tests/balance.luau 1     # бот проходит все 5 карт (1–4 игрока)
 lune run tools/tables.luau        # таблицы баланса из конфигов
 lune run tools/preview/dump.luau out && node tools/preview/render.js out   # превью интерфейса
+lune run tools/preview/models.luau out && node tools/preview/models.js out  # схемы 3D-моделей
 ```
 
 Эмулятор не заменяет Roblox Studio: физика, рендер, анимации, звук и реальная сеть в нём не проверяются.

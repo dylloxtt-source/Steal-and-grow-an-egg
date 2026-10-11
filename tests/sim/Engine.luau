@@ -634,6 +634,25 @@ function RandomStub:NextInteger(min, max)
 	return math.min(max, math.floor(self:NextNumber(min, max + 1)))
 end
 
+-- CFrame.lookAt в Lune разворачивает направление для большинства векторов,
+-- поэтому код игры в эмуляторе получает исправленную версию (как в Roblox)
+local function lookAt(at, target, up)
+	up = up or Vector3.new(0, 1, 0)
+	local look = target - at
+	if look.Magnitude < 1e-9 then
+		return CFrame.new(at)
+	end
+	look = look.Unit
+	local right = look:Cross(up)
+	if right.Magnitude < 1e-6 then
+		right = look:Cross(Vector3.new(0, 0, 1))
+	end
+	right = right.Unit
+	return CFrame.fromMatrix(at, right, right:Cross(look), -look)
+end
+Engine.LookAt = lookAt
+local CFrameShim = setmetatable({ lookAt = lookAt }, { __index = CFrame })
+
 local TweenInfoStub = { new = function(...)
 	return { ... }
 end }
@@ -674,7 +693,7 @@ function Engine.Realm(isServer: boolean)
 			Enum = roblox.Enum,
 			Vector3 = Vector3,
 			Vector2 = roblox.Vector2,
-			CFrame = CFrame,
+			CFrame = CFrameShim,
 			Color3 = roblox.Color3,
 			UDim = roblox.UDim,
 			UDim2 = roblox.UDim2,
