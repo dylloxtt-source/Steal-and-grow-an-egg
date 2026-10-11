@@ -59,7 +59,7 @@ function WaveSystem:StartWave(number: number)
 	match:ClearVotes("Skip")
 	match:Fx({ k = "wave", n = number, elite = self.Config.Elite, boss = self.Config.Boss })
 	if self.Config.Elite then
-		match:Notify("⚠ Elite wave " .. number, "warn")
+		match:Notify("Elite wave " .. number .. "!", "warn")
 	end
 	match:MarkDirty()
 end

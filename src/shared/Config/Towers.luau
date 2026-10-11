@@ -76,7 +76,7 @@ local list: { Tower } = {
 	{
 		Id = "archer", Name = "Archer", Role = "Cheap ranged",
 		Description = "Fires arrows at a single target, and at several targets at higher levels.",
-		Price = 100, Rarity = "Common",
+		Price = 50, Rarity = "Common",
 		Attack = "arrow", Icon = "🏹", Accent = c(110, 210, 110), ProjectileSpeed = 70,
 		Levels = {
 			{ Cost = 300, Damage = 16, Range = 17, Cooldown = 1.0, Tier = 1, Text = "Short Bow" },

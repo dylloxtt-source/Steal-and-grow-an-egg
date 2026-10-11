@@ -15,6 +15,7 @@ local Engine = require("./sim/Engine")
 local Vector3 = roblox.Vector3
 local Instance = roblox.Instance
 local Color3 = roblox.Color3
+local Enum = roblox.Enum
 
 local passed, failed = 0, 0
 local failures = {}
@@ -160,7 +161,7 @@ check("элита — элитный и без оглушения", E.elite.Elit
 section("Волны")
 ------------------------------------------------------------------------
 
-check("30 волн", Waves.Max == 30)
+check("20 волн", Waves.Max == 20)
 local prevHp = 0
 local firstStealth = nil
 for n = 1, 50 do
@@ -175,7 +176,15 @@ for n = 1, 50 do
 	check("волна " .. n .. ": здоровье растёт", wave.HealthMult >= prevHp)
 	prevHp = wave.HealthMult
 end
-check("боссы на 10/20/30 волнах", Waves.Get(10).Boss and Waves.Get(20).Boss and Waves.Get(30).Boss)
+check("боссы на 10/15/20 волнах", Waves.Get(10).Boss == "boss_brute" and Waves.Get(15).Boss == "boss_juggernaut" and Waves.Get(20).Boss == "boss_warlord")
+check("любой прорвавшийся враг отнимает ровно 1 жизнь", (function()
+	for _, def in Enemies.List do
+		if def.Leak ~= 1 then
+			return false
+		end
+	end
+	return true
+end)())
 check("элитные волны есть", (function()
 	for n = 1, 30 do
 		if Waves.Get(n).Elite then
@@ -252,6 +261,16 @@ for _, map in Maps.List do
 	end
 	check(map.Id .. ": земля твёрдая и закреплена (персонаж не провалится)", grounds > 0 and groundSolid)
 	check(map.Id .. ": невидимые стены по краю поля", walls == 4)
+	local studded, solid = 0, 0
+	for _, d in folder:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency < 0.3 and d.Material ~= Enum.Material.Neon and d.Material ~= Enum.Material.Ice then
+			solid += 1
+			if d.TopSurface == Enum.SurfaceType.Studs and d.Material == Enum.Material.Plastic then
+				studded += 1
+			end
+		end
+	end
+	check(map.Id .. ": студ-стиль (пластик со студами)", solid > 0 and studded == solid, studded .. "/" .. solid)
 end
 
 ------------------------------------------------------------------------

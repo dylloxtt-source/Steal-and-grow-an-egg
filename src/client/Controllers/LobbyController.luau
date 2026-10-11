@@ -29,7 +29,8 @@ local layer: Frame
 local refs: any = {}
 local lastElevatorIndex: number? = nil
 
-local STATE_TEXT = { Empty = "OPEN", Waiting = "WAITING FOR PLAYERS", Starting = "STARTING SOON!", InMatch = "DEPARTED" }
+local STATE_TEXT = { Empty = "Open", Waiting = "Waiting for players", Starting = "Starting!", InMatch = "Departed" }
+local DIFFICULTY = { "Easy", "Medium", "Hard", "Insane", "Insane" }
 local STATE_COLOR = { Empty = C.Green, Waiting = C.Gold, Starting = C.Orange, InMatch = C.Red }
 
 local function difficultyPips(parent: Instance, difficulty: number, position: UDim2)
@@ -53,35 +54,35 @@ local function buildTopBar()
 	Kit.Headshot(card, Players.LocalPlayer.UserId, 56, UDim2.fromOffset(10, 10))
 	Kit.Text({ Text = Players.LocalPlayer.DisplayName, Font = "Display", TextSize = 21, Size = UDim2.new(1, -86, 0, 26), Position = UDim2.fromOffset(76, 8),
 		Stroke = true, Parent = card })
-	refs.Level = Kit.Badge({ Text = "LV 1", Color = C.Gold, Size = UDim2.fromOffset(58, 22), Position = UDim2.fromOffset(76, 40), Parent = card })
+	refs.Level = Kit.Badge({ Text = "Lv 1", Color = C.Gold, Size = UDim2.fromOffset(58, 22), Position = UDim2.fromOffset(76, 40), Parent = card })
 	refs.Xp = Kit.Bar(card, C.Accent, UDim2.fromOffset(180, 18), UDim2.fromOffset(142, 42), 11)
 
-	local right = Root.Fit(Kit.Create("Frame", { Name = "TopRight", BackgroundTransparency = 1, Size = UDim2.fromOffset(500, 56),
+	local right = Root.Fit(Kit.Create("Frame", { Name = "TopRight", BackgroundTransparency = 1, Size = UDim2.fromOffset(560, 56),
 		Position = UDim2.new(1, -16, 0, 12), AnchorPoint = Vector2.new(1, 0), Parent = layer }))
 	local list = Kit.List(right, 8, true, Enum.HorizontalAlignment.Right)
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
-	refs.Gems = Kit.Pill({ Icon = "💎", Text = "0", Color = C.Gem, Size = UDim2.fromOffset(150, 46), LayoutOrder = 1, Parent = right })
-	refs.Wins = Kit.Pill({ Icon = "🏆", Text = "0", Color = C.Gold, Size = UDim2.fromOffset(104, 46), LayoutOrder = 2, Parent = right })
-	Kit.Button({ Name = "ShopButton", Text = "🛒 SHOP", Variant = "Gold", Size = UDim2.fromOffset(128, 52), TextSize = 20, LayoutOrder = 3, Parent = right,
+	refs.Gems = Kit.Pill({ Icon = "gem", Text = "0", Color = C.Gem, Size = UDim2.fromOffset(150, 46), LayoutOrder = 1, Parent = right })
+	refs.Wins = Kit.Pill({ Icon = "star", Text = "0", Color = C.Gold, Size = UDim2.fromOffset(104, 46), LayoutOrder = 2, Parent = right })
+	Kit.Button({ Name = "ShopButton", Text = "Shop", Variant = "Gold", Size = UDim2.fromOffset(118, 52), TextSize = 22, LayoutOrder = 3, Parent = right,
 		OnClick = function()
 			Sound.Play("Click")
 			ShopController.Toggle()
 		end })
-	Kit.Button({ Name = "SettingsButton", Text = "⚙", Variant = "Neutral", Size = UDim2.fromOffset(52, 52), TextSize = 24, LayoutOrder = 4, Parent = right,
+	Kit.Button({ Name = "SettingsButton", Text = "Settings", Variant = "Neutral", Size = UDim2.fromOffset(122, 52), TextSize = 19, LayoutOrder = 4, Parent = right,
 		OnClick = function()
 			Sound.Play("Click")
 			SettingsController.Toggle()
 		end })
 
-	refs.Memory = Root.Fit(Kit.Badge({ Text = "⚠ TEST MODE — progress is not saved", Color = C.Orange, Size = UDim2.fromOffset(330, 26), TextSize = 14,
+	refs.Memory = Root.Fit(Kit.Badge({ Text = "Test mode - progress is not saved", Color = C.Orange, Size = UDim2.fromOffset(330, 26), TextSize = 14,
 		Position = UDim2.new(0.5, 0, 0, 16), AnchorPoint = Vector2.new(0.5, 0), Parent = layer }))
 	refs.Memory.Visible = false
 
 	local hint = Root.Fit(Kit.Panel({ Name = "Hint", Size = UDim2.fromOffset(520, 64), Position = UDim2.new(0.5, 0, 1, -18), AnchorPoint = Vector2.new(0.5, 1),
 		Parent = layer }))
-	Kit.Text({ Text = "🛗  Step into an elevator to start a match", Font = "Display", TextSize = 22, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 8),
+	Kit.Text({ Text = "Walk into an elevator to play!", Font = "Display", TextSize = 24, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 8),
 		TextXAlignment = Enum.TextXAlignment.Center, Stroke = true, Parent = hint })
-	Kit.Text({ Text = "New towers are waiting in the Tower Shop", TextSize = 14, Weight = "Semi", TextColor3 = C.SubText, Size = UDim2.new(1, 0, 0, 18),
+	Kit.Text({ Text = "Get new towers in the Shop", TextSize = 14, Weight = "Semi", TextColor3 = C.SubText, Size = UDim2.new(1, 0, 0, 18),
 		Position = UDim2.fromOffset(0, 38), TextXAlignment = Enum.TextXAlignment.Center, Parent = hint })
 	refs.Hint = hint
 end
@@ -96,7 +97,7 @@ local function refreshProfile()
 	Kit.CountUp(refs.Gems.Label, previous, profile.gems, 0.6, function(n)
 		return Format.Thousands(math.floor(n + 0.5))
 	end)
-	refs.Level.Text = "LV " .. profile.level
+	refs.Level.Text = "Lv " .. profile.level
 	local need = Economy.Xp.PerLevel(profile.level)
 	refs.Xp:Set(profile.xp / need, string.format("%s / %s XP", Format.Thousands(math.floor(profile.xp)), Format.Thousands(need)))
 	refs.Wins:Set(Format.Thousands(profile.stats.wins))
@@ -111,7 +112,7 @@ local function buildElevatorPanel()
 	local panel = Root.Fit(Kit.Panel({ Name = "Elevator", Size = UDim2.fromOffset(400, 556), Position = UDim2.new(1, -16, 0.5, 20),
 		AnchorPoint = Vector2.new(1, 0.5), Visible = false, Parent = layer }))
 	refs.ElevatorPanel = panel
-	local header = Kit.Header(panel, { Title = "ELEVATOR 1", Icon = "🛗" })
+	local header = Kit.Header(panel, { Title = "Elevator 1" })
 	refs.ElTitle = header:FindFirstChild("Title")
 	refs.ElTimer = Kit.Text({ Text = "", Font = "Display", TextSize = 34, TextColor3 = C.White, Size = UDim2.fromOffset(90, 54), Position = UDim2.new(1, -16, 0, 0),
 		AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, Stroke = true, StrokeThickness = 2, ZIndex = 3, Parent = header })
@@ -119,7 +120,7 @@ local function buildElevatorPanel()
 	local body = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -28, 1, -68), Position = UDim2.fromOffset(14, 62), Parent = panel })
 	refs.ElState = Kit.Badge({ Text = "", Color = C.Gold, Size = UDim2.new(1, 0, 0, 28), TextSize = 15, Parent = body })
 
-	Kit.Text({ Text = "MAP", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 38), TextSize = 14, TextColor3 = C.SubText, Parent = body })
+	Kit.Text({ Text = "Map", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 38), TextSize = 14, TextColor3 = C.SubText, Parent = body })
 	local maps = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 138), Position = UDim2.fromOffset(0, 58), Parent = body })
 	Kit.Create("UIGridLayout", { CellSize = UDim2.new(1 / 3, -5, 0, 66), CellPadding = UDim2.fromOffset(7, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = maps })
 	refs.MapCards = {}
@@ -130,7 +131,7 @@ local function buildElevatorPanel()
 		local stroke = Kit.Stroke(card, 1, 3, C.Accent)
 		local band = Kit.Create("Frame", { BackgroundColor3 = map.Accent, Size = UDim2.new(1, 0, 0, 22), BorderSizePixel = 0, Parent = card })
 		Kit.Gradient(band, Color3.fromRGB(255, 255, 255), Color3.fromRGB(160, 160, 160))
-		Kit.Text({ Text = "❤ " .. map.BaseHealth, Font = "Display", TextSize = 12, Size = UDim2.new(1, -8, 0, 22), Position = UDim2.fromOffset(6, 0), Stroke = true,
+		Kit.Text({ Text = DIFFICULTY[math.clamp(math.floor((map.Difficulty - 1) / 0.13) + 1, 1, 5)], Font = "Display", TextSize = 12, Size = UDim2.new(1, -8, 0, 22), Position = UDim2.fromOffset(6, 0), Stroke = true,
 			Parent = band })
 		Kit.Text({ Text = map.Name, Font = "Display", TextSize = 14, Size = UDim2.new(1, -10, 0, 18), Position = UDim2.fromOffset(6, 26), Stroke = true, Parent = card })
 		difficultyPips(card, map.Difficulty, UDim2.fromOffset(6, 48))
@@ -144,16 +145,16 @@ local function buildElevatorPanel()
 		refs.MapCards[map.Id] = { Card = card, Stroke = stroke }
 	end
 
-	Kit.Text({ Text = "PARTY SIZE", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 204), TextSize = 14, TextColor3 = C.SubText,
+	Kit.Text({ Text = "Party size", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 204), TextSize = 14, TextColor3 = C.SubText,
 		Parent = body })
-	refs.Capacity = Kit.Segmented({ Options = { { Id = "1", Text = "SOLO" }, { Id = "2", Text = "2" }, { Id = "3", Text = "3" }, { Id = "4", Text = "4" } },
+	refs.Capacity = Kit.Segmented({ Options = { { Id = "1", Text = "Solo" }, { Id = "2", Text = "2" }, { Id = "3", Text = "3" }, { Id = "4", Text = "4" } },
 		Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 224), Parent = body, OnSelect = function(id)
 			Sound.Play("Click")
 			State.Fire("ElevatorSetCapacity", { capacity = tonumber(id) })
 		end })
 	refs.Capacity.Frame.Position = UDim2.fromOffset(0, 224)
 
-	refs.ElPlayersTitle = Kit.Text({ Text = "PLAYERS", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 274), TextSize = 14,
+	refs.ElPlayersTitle = Kit.Text({ Text = "Players", Font = "Display", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(2, 274), TextSize = 14,
 		TextColor3 = C.SubText, Parent = body })
 	local members = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 132), Position = UDim2.fromOffset(0, 294), Parent = body })
 	Kit.List(members, 3)
@@ -169,16 +170,16 @@ local function buildElevatorPanel()
 
 	local buttons = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 50), Position = UDim2.new(0, 0, 1, -52), Parent = body })
 	Kit.List(buttons, 8, true, Enum.HorizontalAlignment.Center)
-	refs.ReadyButton = Kit.Button({ Name = "Ready", Text = "READY", Variant = "Success", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 1, Parent = buttons,
+	refs.ReadyButton = Kit.Button({ Name = "Ready", Text = "Ready", Variant = "Success", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 1, Parent = buttons,
 		OnClick = function()
 			local me = LobbyController.Me()
 			State.Fire("ElevatorReady", { ready = not (me and me.ready) })
 		end })
-	refs.StartButton = Kit.Button({ Name = "Start", Text = "START", Variant = "Gold", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 2, Parent = buttons,
+	refs.StartButton = Kit.Button({ Name = "Start", Text = "Start", Variant = "Gold", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 2, Parent = buttons,
 		OnClick = function()
 			State.Fire("ElevatorStart")
 		end })
-	Kit.Button({ Name = "Leave", Text = "LEAVE", Variant = "Danger", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 3, Parent = buttons,
+	Kit.Button({ Name = "Leave", Text = "Leave", Variant = "Danger", Size = UDim2.new(1 / 3, -6, 1, 0), LayoutOrder = 3, Parent = buttons,
 		OnClick = function()
 			State.Fire("ElevatorLeave")
 		end })
@@ -210,9 +211,9 @@ local function refreshElevator()
 		Sound.Play("ElevatorJoin")
 	end
 	local isLeader = elevator.leader == Players.LocalPlayer.UserId
-	refs.ElTitle.Text = "🛗  ELEVATOR " .. elevator.index
+	refs.ElTitle.Text = "Elevator " .. elevator.index
 	local status = STATE_TEXT[elevator.state] or elevator.state
-	refs.ElState.Text = status .. (if isLeader then "  •  👑 YOU LEAD" else "")
+	refs.ElState.Text = status
 	refs.ElState.BackgroundColor3 = STATE_COLOR[elevator.state] or C.Accent
 	refs.ElTimer.Text = if elevator.state == "Waiting" or elevator.state == "Starting" then tostring(math.ceil(elevator.timer)) else ""
 	refs.ElTimer.TextColor3 = if elevator.state == "Starting" then C.Gold else C.White
@@ -226,7 +227,7 @@ local function refreshElevator()
 		button:SetAttribute("Disabled", not isLeader or tonumber(n) < #elevator.members)
 	end
 	refs.Capacity:Set(tostring(elevator.capacity))
-	refs.ElPlayersTitle.Text = string.format("PLAYERS  %d / %d", #elevator.members, elevator.capacity)
+	refs.ElPlayersTitle.Text = string.format("Players %d/%d", #elevator.members, elevator.capacity)
 	for i, row in refs.MemberRows do
 		local member = elevator.members[i]
 		row.Row.Visible = i <= elevator.capacity
@@ -236,18 +237,18 @@ local function refreshElevator()
 				row.UserId = member.userId
 				row.Avatar.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", math.max(1, member.userId))
 			end
-			row.Name.Text = (if member.userId == elevator.leader then "👑 " else "") .. member.name
+			row.Name.Text = member.name .. (if member.userId == elevator.leader then " (Leader)" else "")
 			row.Name.TextColor3 = if member.userId == Players.LocalPlayer.UserId then C.Accent else C.Text
-			row.Ready.Text = if member.ready then "✔ READY" else "NOT READY"
+			row.Ready.Text = if member.ready then "Ready" else "..."
 			row.Ready.TextColor3 = if member.ready then C.Green else C.Muted
 		else
-			row.Name.Text = "   open slot"
+			row.Name.Text = "Empty slot"
 			row.Name.TextColor3 = C.Muted
 			row.Ready.Text = ""
 		end
 	end
 	local me = LobbyController.Me()
-	Kit.SetText(refs.ReadyButton, if me and me.ready then "UNREADY" else "READY")
+	Kit.SetText(refs.ReadyButton, if me and me.ready then "Not ready" else "Ready")
 	Kit.SetVariant(refs.ReadyButton, if me and me.ready then "Neutral" else "Success")
 	refs.StartButton.Visible = isLeader
 	Kit.SetVariant(refs.StartButton, if elevator.state == "Waiting" then "Gold" else "Disabled")

@@ -199,8 +199,8 @@ tick(0.2)
 check("клиент получил обновлённый профиль", ClientState.Profile and ClientState.Profile.owned.wolverine == true and #ClientState.Profile.loadout == 4)
 ShopController.Open()
 tick(0.2)
-check("магазин открыт и показывает статусы", visible(gui.Shop.Window) and findText(gui.Shop, "EQUIPPED") ~= nil and findText(gui.Shop, "OWNED") ~= nil)
-check("магазин: цена некупленной башни", findText(gui.Shop, "💎 " .. Towers.ById.lumberjack.Price) ~= nil)
+check("магазин открыт и показывает статусы", visible(gui.Shop.Window) and findText(gui.Shop, "Equipped") ~= nil and findText(gui.Shop, "Owned") ~= nil)
+check("магазин: цена некупленной башни", findText(gui.Shop, Towers.ById.lumberjack.Price .. " Gems") ~= nil)
 ShopController.Close()
 r = act(p1, "SetSetting", { key = "autoSkip", value = true })
 check("настройка авто-скипа сохраняется в профиле", r.ok and p1profile.settings.autoSkip == true)
@@ -322,14 +322,14 @@ local character = p1.Character
 local offset = character.PrimaryPart.CFrame.Position - solo.Origin
 check("игрок перенесён на карту", math.abs(offset.X) < 100 and math.abs(offset.Z) < 100)
 check("стартовые деньги", solo.PlayerState[p1.UserId].Cash == Economy.StartCash and duo.PlayerState[p5.UserId].Cash == Economy.StartCash)
-check("здоровье базы по карте", solo.BaseHealth == Maps.ById.greenfield.BaseHealth)
+check("у базы 3 жизни", solo.BaseHealth == Game.Match.Lives and Game.Match.Lives == 3)
 check("фаза подготовки", solo.Waves.Phase == "Prep" and solo.Waves.Wave == 0)
 tick(0.3)
 check("клиент: HUD матча виден, лобби скрыто", gui.Match.Visible == true and gui.Lobby.Visible == false)
 check("клиент: снимок матча получен", ClientState.Match ~= nil and ClientState.Match.mapId == "greenfield")
-check("HUD: волна", findText(gui.Match, "WAVE 0") ~= nil)
-check("HUD: деньги", findText(gui.Match, "$" .. Economy.StartCash) ~= nil)
-check("HUD: таймер подготовки", findText(gui.Match, "WAVE 1 IN") ~= nil)
+check("HUD: волна", findText(gui.Match, "Wave 0") ~= nil)
+check("HUD: деньги", findText(gui.Match, server.require(Shared.Logic.Format).Cash(Economy.StartCash)) ~= nil)
+check("HUD: таймер подготовки", findText(gui.Match, "Get ready!") ~= nil)
 local bar = gui.Match.BottomCenter.TowerBar
 check("HUD: панель башен = набор игрока", bar:FindFirstChild("archer") ~= nil and bar:FindFirstChild("wolverine") ~= nil
 	and bar:FindFirstChild("swordsman") == nil and bar:FindFirstChild("lumberjack") == nil)
@@ -382,9 +382,11 @@ check("NaN-координаты отклонены", r.ok == false)
 r = act(p1, "PlaceTower", { tower = "dragon", x = 0, z = 0 })
 check("несуществующая башня отклонена", r.ok == false)
 local best = spots(solo, 12)[1]
+solo.PlayerState[p1.UserId].Cash = 500
 r = act(p1, "PlaceTower", { tower = "wolverine", x = best.X, z = best.Z })
 check("не хватает денег — отказ", r.ok == false and r.message == "Not enough cash", r.message)
-check("деньги не списаны при отказе", solo.PlayerState[p1.UserId].Cash == Economy.StartCash)
+check("деньги не списаны при отказе", solo.PlayerState[p1.UserId].Cash == 500)
+solo.PlayerState[p1.UserId].Cash = Economy.StartCash
 
 -- Клиентский призрак: камера смотрит сверху на точку
 local camera = Engine.Workspace.CurrentCamera
@@ -471,7 +473,7 @@ local fastWalker = solo.Enemies.Alive[1]
 tick(0.3)
 check("скорость врагов для клиента учитывает x2", fastWalker == nil or fastWalker.Dead
 	or math.abs((fastWalker.Model:GetAttribute("Speed") or 0) - fastWalker.SyncedSpeed * 2) < 1e-6)
-check("HUD: кнопка x2 отмечена", findText(gui.Match, "x2 ON") ~= nil)
+check("HUD: кнопка x2 отмечена", findText(gui.Match, "x2 On") ~= nil)
 r = act(p1, "VoteSpeed")
 check("повторный голос отменяет x2", r.ok and solo.TimeScale == 1)
 check("клиент видит врагов (тег Enemy)", #Engine.Workspace.ActiveMatches:GetDescendants() > 0)
@@ -572,7 +574,7 @@ end
 TowerController.Select(archerModel)
 tick(0.3)
 check("меню башни открыто", visible(gui.Match.TowerInfo))
-check("меню: Max Level на максимуме", findText(gui.Match.TowerInfo, "MAX LEVEL") ~= nil)
+check("меню: Max Level на максимуме", findText(gui.Match.TowerInfo, "Max Level") ~= nil)
 check("меню: приоритеты", findText(gui.Match.TowerInfo, "Strong") ~= nil)
 
 r = act(p1, "SetPriority", { uid = archer.Uid, priority = "Strongest" })
@@ -602,7 +604,7 @@ solo.Enemies:Kill(enemy)
 solo.Enemies:Damage(enemy, 999)
 check("награда за убийство выдаётся один раз", afterFirst > before and solo.PlayerState[p1.UserId].Earned == afterFirst)
 
-check("босс по расписанию на волне 10", Waves.Get(10).Boss == "boss_brute" and Waves.Get(20).Boss ~= nil and Waves.Get(30).Boss ~= nil)
+check("боссы по расписанию: 10, 15, 20", Waves.Get(10).Boss == "boss_brute" and Waves.Get(15).Boss ~= nil and Waves.Get(20).Boss ~= nil)
 for _, e in table.clone(solo.Enemies.Alive) do
 	solo.Enemies:Kill(e)
 end
@@ -617,7 +619,22 @@ for _, e in solo.Enemies.Alive do
 end
 tick(0.3)
 check("босс появился на 10-й волне", sawBoss or solo.Enemies.Killed > 0 and ClientState.Match.wave == 10)
-check("HUD: полоса здоровья босса", (not sawBoss) or findText(gui.Match, "☠") ~= nil)
+check("HUD: полоса здоровья босса", (not sawBoss) or (gui.Match.TopCenter.Boss1.Visible and findText(gui.Match, "Brute") ~= nil))
+task.wait(0.1) -- клиент подхватывает новых врагов отложенно (task.defer)
+tick(0.1)
+local billboard = nil
+for _, e in solo.Enemies.Alive do
+	local head = e.Model:FindFirstChild("Head")
+	billboard = billboard or (head and head:FindFirstChild("HpBar"))
+end
+check("над врагом видна полоска HP с числом", billboard ~= nil and billboard.AlwaysOnTop == true and (function()
+	for _, d in billboard:GetDescendants() do
+		if d:IsA("TextLabel") and tonumber((string.gsub(d.Text, "[KM]", ""))) then
+			return true
+		end
+	end
+	return false
+end)())
 
 ------------------------------------------------------------------------
 section("Безопасность запросов")
@@ -757,8 +774,8 @@ end
 check("враги наносят урон базе", solo.BaseHealth < hpBefore)
 check("поражение при 0 здоровья базы", solo.Ended and solo.Result == "Defeat", solo.Result)
 tick(0.3)
-check("клиент: экран итогов", gui.Results.Results.Visible == true and findText(gui.Results, "DEFEAT") ~= nil)
-check("итоги: кнопка «В лобби»", findText(gui.Results, "RETURN TO LOBBY") ~= nil)
+check("клиент: экран итогов", gui.Results.Results.Visible == true and findText(gui.Results, "Defeat") ~= nil)
+check("итоги: кнопка «В лобби»", findText(gui.Results, "Back to Lobby") ~= nil)
 local profile = DataService:GetSession(p1).Profile
 check("профиль: матч и поражение записаны", profile.stats.matches == 1 and profile.stats.losses == 1)
 check("профиль: награды начислены", profile.gems > 0)

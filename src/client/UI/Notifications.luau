@@ -14,12 +14,12 @@ local Notifications = {}
 
 local holder: Frame
 local STYLES = {
-	error = { C.Red, "✖" },
-	success = { C.Green, "✔" },
+	error = { C.Red, "!" },
+	success = { C.Green, "+" },
 	warn = { C.Orange, "!" },
-	boss = { C.Purple, "☠" },
+	boss = { C.Purple, "!" },
 	info = { C.Accent, "i" },
-	gem = { C.Gem, "💎" },
+	gem = { C.Gem, "+" },
 }
 
 function Notifications.Show(text: string, kind: string?)

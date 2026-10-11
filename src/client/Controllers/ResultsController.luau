@@ -25,9 +25,9 @@ local ResultsController = {}
 local refs: any = {}
 local token = 0
 
-local function tile(parent: Instance, order: number, icon: string, title: string): TextLabel
+local function tile(parent: Instance, order: number, title: string): TextLabel
 	local frame = Kit.Inset({ Size = UDim2.fromOffset(146, 74), LayoutOrder = order, Parent = parent })
-	Kit.Text({ Text = icon .. "  " .. title, Font = "Display", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 10), TextSize = 13, TextColor3 = C.SubText,
+	Kit.Text({ Text = title, Font = "Display", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 10), TextSize = 13, TextColor3 = C.SubText,
 		TextXAlignment = Enum.TextXAlignment.Center, Parent = frame })
 	return Kit.Text({ Text = "0", Font = "Display", Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 32), TextSize = 28,
 		TextXAlignment = Enum.TextXAlignment.Center, Stroke = true, Parent = frame })
@@ -51,10 +51,10 @@ local function build(layer: Instance)
 
 	local tiles = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -32, 0, 74), Position = UDim2.fromOffset(16, 110), Parent = panel })
 	Kit.List(tiles, 10, true, Enum.HorizontalAlignment.Center)
-	refs.Kills = tile(tiles, 1, "☠", "KILLS")
-	refs.Damage = tile(tiles, 2, "⚔", "DAMAGE")
-	refs.Earned = tile(tiles, 3, "💵", "EARNED")
-	refs.Towers = tile(tiles, 4, "🏰", "TOWERS")
+	refs.Kills = tile(tiles, 1, "Kills")
+	refs.Damage = tile(tiles, 2, "Damage")
+	refs.Earned = tile(tiles, 3, "Cash earned")
+	refs.Towers = tile(tiles, 4, "Towers")
 
 	local rewards = Kit.Inset({ Size = UDim2.new(1, -32, 0, 58), Position = UDim2.fromOffset(16, 196), Parent = panel })
 	Kit.List(rewards, 26, true, Enum.HorizontalAlignment.Center)
@@ -62,11 +62,11 @@ local function build(layer: Instance)
 		TextXAlignment = Enum.TextXAlignment.Center, LayoutOrder = 1, Parent = rewards })
 	refs.Xp = Kit.Text({ Text = "", Font = "Display", Size = UDim2.fromOffset(170, 40), TextSize = 26, TextColor3 = C.Accent, Stroke = true, StrokeThickness = 2,
 		TextXAlignment = Enum.TextXAlignment.Center, LayoutOrder = 2, Parent = rewards })
-	refs.LevelUp = Kit.Badge({ Text = "🎉 LEVEL UP!", Color = C.Gold, Size = UDim2.fromOffset(160, 32), TextSize = 17, LayoutOrder = 3, Parent = rewards })
+	refs.LevelUp = Kit.Badge({ Text = "Level up!", Color = C.Gold, Size = UDim2.fromOffset(160, 32), TextSize = 17, LayoutOrder = 3, Parent = rewards })
 
-	Kit.Text({ Text = "TEAM", Font = "Display", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(20, 266), TextSize = 15, TextColor3 = C.SubText, Parent = panel })
+	Kit.Text({ Text = "Team", Font = "Display", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(20, 266), TextSize = 15, TextColor3 = C.SubText, Parent = panel })
 	local header = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -32, 0, 16), Position = UDim2.fromOffset(16, 288), Parent = panel })
-	local columns = { { "PLAYER", 0, 0.4 }, { "KILLS", 0.4, 0.18 }, { "DAMAGE", 0.58, 0.2 }, { "EARNED", 0.78, 0.22 } }
+	local columns = { { "Player", 0, 0.4 }, { "Kills", 0.4, 0.18 }, { "Damage", 0.58, 0.2 }, { "Cash", 0.78, 0.22 } }
 	for _, column in columns do
 		Kit.Text({ Text = column[1], Font = "Display", Size = UDim2.new(column[3], -8, 1, 0), Position = UDim2.new(column[2], 8, 0, 0), TextSize = 12,
 			TextColor3 = C.Muted, Parent = header })
@@ -84,7 +84,7 @@ local function build(layer: Instance)
 
 	refs.Saved = Kit.Text({ Text = "", Font = "Display", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 1, -104), TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Center, Parent = panel })
-	refs.Return = Kit.Button({ Name = "Return", Text = "RETURN TO LOBBY", Variant = "Primary", Size = UDim2.fromOffset(320, 58), Position = UDim2.new(0.5, 0, 1, -16),
+	refs.Return = Kit.Button({ Name = "Return", Text = "Back to Lobby", Variant = "Primary", Size = UDim2.fromOffset(320, 58), Position = UDim2.new(0.5, 0, 1, -16),
 		AnchorPoint = Vector2.new(0.5, 1), TextSize = 21, Parent = panel, OnClick = function()
 			Kit.SetVariant(refs.Return, "Disabled")
 			State.Fire("ReturnToLobby", nil, function(ok)
@@ -100,19 +100,19 @@ function ResultsController.Show(results: any)
 	TowerController.Select(nil)
 	local map = Maps.ById[results.mapId]
 	local victory = results.victory == true
-	refs.Title.Text = if victory then "VICTORY!" else "DEFEAT"
+	refs.Title.Text = if victory then "Victory!" else "Defeat"
 	refs.Ribbon.BackgroundColor3 = if victory then C.Green else C.Red
-	refs.Subtitle.Text = string.format("%s  •  WAVE %d / %d  •  %s", if map then string.upper(map.Name) else "?", results.wave, results.maxWave,
+	refs.Subtitle.Text = string.format("%s  -  Wave %d/%d  -  %s", if map then map.Name else "?", results.wave, results.maxWave,
 		Format.Time(results.time or 0))
 	refs.Kills.Text = Format.Thousands(results.you.kills)
 	refs.Damage.Text = Format.Number(results.you.damage)
 	refs.Earned.Text = Format.Cash(results.you.earned)
 	refs.Towers.Text = tostring(results.you.towers)
 	Kit.CountUp(refs.Gems, 0, results.rewards.gems, 1.2, function(n)
-		return "💎 +" .. Format.Thousands(math.floor(n + 0.5))
+		return "+" .. Format.Thousands(math.floor(n + 0.5)) .. " Gems"
 	end)
 	Kit.CountUp(refs.Xp, 0, results.rewards.xp, 1.2, function(n)
-		return "⭐ +" .. Format.Thousands(math.floor(n + 0.5)) .. " XP"
+		return "+" .. Format.Thousands(math.floor(n + 0.5)) .. " XP"
 	end)
 	refs.LevelUp.Visible = (results.levelsGained or 0) > 0
 	local myName = Players.LocalPlayer.Name
@@ -126,7 +126,7 @@ function ResultsController.Show(results: any)
 		local entry = results.team[i]
 		row.Row.Visible = entry ~= nil
 		if entry then
-			row.Cells[1].Text = (if entry == mvp and #results.team > 1 then "👑 " else "") .. entry.name .. (if entry.connected == false then " (left)" else "")
+			row.Cells[1].Text = (if entry == mvp and #results.team > 1 then "[MVP] " else "") .. entry.name .. (if entry.connected == false then " (left)" else "")
 			row.Cells[1].TextColor3 = if entry.name == myName then C.Accent else C.Text
 			row.Cells[2].Text = Format.Thousands(entry.kills)
 			row.Cells[3].Text = Format.Number(entry.damage)
@@ -145,7 +145,7 @@ function ResultsController.Show(results: any)
 	task.spawn(function()
 		while mine == token and refs.Dim.Visible do
 			local left = math.max(0, math.ceil(deadline - os.clock()))
-			Kit.SetText(refs.Return, string.format("RETURN TO LOBBY  (%d)", left))
+			Kit.SetText(refs.Return, string.format("Back to Lobby (%d)", left))
 			task.wait(0.25)
 		end
 	end)
@@ -154,13 +154,13 @@ end
 -- saved: true — записано, false — не сохраняется (тестовый режим / ошибка), nil — идёт сохранение
 function ResultsController.SetSaved(saved: boolean?)
 	if saved == nil then
-		refs.Saved.Text = "Saving progress…"
+		refs.Saved.Text = "Saving..."
 		refs.Saved.TextColor3 = C.SubText
 	elseif saved then
-		refs.Saved.Text = "✔ Progress saved"
+		refs.Saved.Text = "Progress saved"
 		refs.Saved.TextColor3 = C.Green
 	else
-		refs.Saved.Text = if State.MemoryMode then "⚠ Test mode: progress is not saved" else "⚠ Could not save — we will retry automatically"
+		refs.Saved.Text = if State.MemoryMode then "Test mode: progress is not saved" else "Could not save, retrying soon"
 		refs.Saved.TextColor3 = C.Orange
 	end
 end

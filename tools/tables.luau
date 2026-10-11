@@ -13,7 +13,7 @@ for i, t in Towers.List do
   print(string.format("| %d | %s %s | %s | $%d | %d | %s | %.2f | %d → %d | $%d | %s |", i, t.Icon, t.Name, t.Role, l1.Cost, l1.Damage, tostring(l1.Range), 1/l1.Cooldown, Towers.Dps(l1), Towers.Dps(l5), Towers.TotalSpent(t.Id, 5), l5.Text))
 end
 print()
-print("| Враг | HP | Скорость | Броня | Щит | Урон базе | Награда | Особенность |")
+print("| Враг | HP | Скорость | Броня | Щит | Жизней базы | Награда | Особенность |")
 print("|---|---|---|---|---|---|---|---|")
 for _, e in Enemies.List do
   local ab = {}
@@ -23,5 +23,5 @@ for _, e in Enemies.List do
   print(string.format("| %s | %d | %s | %d | %d | %d | %d | %s |", e.Name, e.Health, tostring(e.Speed), e.Armor, e.Shield, e.Leak, e.Reward, table.concat(ab, ", ")))
 end
 print()
-for _, m in Maps.List do print(m.Id, m.Name, m.Difficulty, m.BaseHealth, m.Theme, m.Description) end
-for n = 1, 30 do local w = Waves.Get(n); local g = {} for _, x in w.Groups do table.insert(g, x.Enemy .. "×" .. x.Count) end print(n, w.Total, w.Boss or "", w.Elite and "elite" or "", table.concat(g, " "), string.format("hp×%.2f", w.HealthMult)) end
+for _, m in Maps.List do print(m.Id, m.Name, m.Difficulty, m.Theme, m.Description) end
+for n = 1, Waves.Max do local w = Waves.Get(n); local g = {} for _, x in w.Groups do table.insert(g, x.Enemy .. "×" .. x.Count) end print(n, w.Total, w.Boss or "", w.Elite and "elite" or "", table.concat(g, " "), string.format("hp×%.2f", w.HealthMult)) end

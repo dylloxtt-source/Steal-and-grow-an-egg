@@ -1,15 +1,15 @@
 --[[
-	Волны. Состав волн 1..30 задан таблицей (читается и правится легко),
-	волны после 30 генерируются формулой — так их можно расширить до 40–50,
-	просто увеличив Waves.Max (и, при желании, дописав таблицу).
+	Волны. Состав волн 1..20 задан таблицей (читается и правится легко),
+	волны после 20 генерируются формулой — их можно добавить, увеличив Waves.Max.
 
-	Рост сложности плавный: здоровье растёт квадратично-медленно, скорость — на 0.8 % за волну
-	(не более +25 %), броня бронированных — на 1 каждые 6 волн.
+	Рост сложности плавный: здоровье растёт квадратично-медленно, скорость — до +25 %,
+	броня бронированных — на 1 каждые 7 волн. Боссы: 10 — Brute, 15 — Juggernaut, 20 — Warlord.
 ]]
 
 local Waves = {}
 
-Waves.Max = 30
+Waves.Max = 20
+Waves.HealthScale = 0.8 -- общий множитель здоровья обычных врагов (баланс под 3 жизни базы)
 
 -- Интервалы между врагами в группе по типам (сек)
 local INTERVAL = {
@@ -20,39 +20,29 @@ local INTERVAL = {
 -- { тип, количество } в порядке выхода
 local TABLE: { [number]: { { any } } } = {
 	[1] = { { "basic", 6 } },
-	[2] = { { "basic", 9 } },
-	[3] = { { "basic", 8 }, { "runner", 4 } },
-	[4] = { { "basic", 10 }, { "runner", 6 } },
+	[2] = { { "basic", 9 }, { "runner", 3 } },
+	[3] = { { "basic", 10 }, { "runner", 6 } },
+	[4] = { { "basic", 8 }, { "tank", 2 }, { "runner", 5 } },
 	[5] = { { "basic", 8 }, { "elite", 1 } },
-	[6] = { { "basic", 8 }, { "tank", 2 }, { "runner", 5 } },
-	[7] = { { "basic", 8 }, { "armored", 4 } },
-	[8] = { { "regenerator", 5 }, { "basic", 8 } },
-	[9] = { { "shielded", 5 }, { "runner", 8 } },
+	[6] = { { "basic", 8 }, { "armored", 4 } },
+	[7] = { { "regenerator", 5 }, { "basic", 8 }, { "shielded", 3 } },
+	[8] = { { "healer", 3 }, { "tank", 3 }, { "basic", 10 } },
+	[9] = { { "stealth", 6 }, { "basic", 10 } },
 	[10] = { { "basic", 10 }, { "boss_brute", 1 } },
-	[11] = { { "healer", 3 }, { "tank", 3 }, { "basic", 10 } },
-	[12] = { { "stealth", 6 }, { "basic", 10 } },
-	[13] = { { "armored", 7 }, { "healer", 2 }, { "runner", 8 } },
-	[14] = { { "shielded", 8 }, { "regenerator", 5 } },
-	[15] = { { "armored", 6 }, { "elite", 3 } },
-	[16] = { { "tank", 6 }, { "healer", 3 }, { "stealth", 5 } },
-	[17] = { { "runner", 18 }, { "shielded", 6 } },
-	[18] = { { "regenerator", 8 }, { "armored", 8 } },
-	[19] = { { "stealth", 8 }, { "healer", 3 }, { "elite", 2 } },
-	[20] = { { "tank", 5 }, { "basic", 12 }, { "boss_juggernaut", 1 } },
-	[21] = { { "armored", 10 }, { "shielded", 8 } },
-	[22] = { { "stealth", 10 }, { "runner", 14 } },
-	[23] = { { "tank", 8 }, { "healer", 5 }, { "regenerator", 6 } },
-	[24] = { { "shielded", 10 }, { "elite", 4 } },
-	[25] = { { "armored", 10 }, { "elite", 6 } },
-	[26] = { { "regenerator", 12 }, { "healer", 5 }, { "stealth", 8 } },
-	[27] = { { "tank", 12 }, { "armored", 10 } },
-	[28] = { { "runner", 16 }, { "stealth", 10 }, { "elite", 6 } },
-	[29] = { { "shielded", 14 }, { "healer", 6 }, { "elite", 6 } },
-	[30] = { { "armored", 8 }, { "healer", 4 }, { "elite", 4 }, { "boss_warlord", 1 } },
+	[11] = { { "armored", 7 }, { "healer", 2 }, { "runner", 8 } },
+	[12] = { { "shielded", 8 }, { "regenerator", 5 } },
+	[13] = { { "tank", 6 }, { "healer", 3 }, { "stealth", 5 } },
+	[14] = { { "runner", 18 }, { "shielded", 6 } },
+	[15] = { { "tank", 5 }, { "basic", 12 }, { "boss_juggernaut", 1 } },
+	[16] = { { "regenerator", 8 }, { "armored", 8 }, { "stealth", 6 } },
+	[17] = { { "armored", 10 }, { "elite", 4 } },
+	[18] = { { "tank", 10 }, { "healer", 5 }, { "regenerator", 6 } },
+	[19] = { { "runner", 16 }, { "stealth", 10 }, { "elite", 5 } },
+	[20] = { { "armored", 8 }, { "healer", 4 }, { "elite", 4 }, { "boss_warlord", 1 } },
 }
 
-Waves.EliteWaves = { [5] = true, [15] = true, [25] = true }
-Waves.BossWaves = { [10] = "boss_brute", [20] = "boss_juggernaut", [30] = "boss_warlord" }
+Waves.EliteWaves = { [5] = true, [17] = true }
+Waves.BossWaves = { [10] = "boss_brute", [15] = "boss_juggernaut", [20] = "boss_warlord" }
 
 local POOL = { "basic", "runner", "tank", "armored", "regenerator", "shielded", "healer", "stealth", "elite" }
 
@@ -66,7 +56,7 @@ local function generated(wave: number): { { any } }
 		local count = if enemy == "elite" then 4 + math.floor(wave / 10) else 8 + math.floor(wave / 3)
 		table.insert(groups, { enemy, count })
 	end
-	if wave % 10 == 0 then
+	if wave % 5 == 0 then
 		table.insert(groups, { "boss_warlord", 1 })
 	end
 	return groups
@@ -84,17 +74,18 @@ export type Wave = {
 	Total: number,
 }
 
+-- Кривая рассчитана на 20 волн (раньше было 30): шаг по «старой» шкале ×1.5
 function Waves.HealthMult(wave: number): number
-	local n = wave - 1
-	return 1 + 0.08 * n + 0.0035 * n * n
+	local n = (wave - 1) * 1.5
+	return Waves.HealthScale * (1 + 0.05 * n + 0.0045 * n * n)
 end
 
 function Waves.SpeedMult(wave: number): number
-	return math.min(1.25, 1 + 0.008 * (wave - 1))
+	return math.min(1.25, 1 + 0.012 * (wave - 1))
 end
 
 function Waves.ArmorAdd(wave: number): number
-	return math.floor((wave - 1) / 6)
+	return math.floor((wave - 1) / 7)
 end
 
 -- Полное описание волны: группы со временем старта (сек от начала волны)

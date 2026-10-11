@@ -4,18 +4,18 @@
 ]]
 
 return {
-	StartCash = 800,
+	StartCash = 1000,
 	SellRefund = 0.6, -- доля от всего потраченного на башню (покупка + улучшения)
 	TowerLimit = 15, -- на игрока
 	-- Награда за убийство выдаётся КАЖДОМУ игроку матча (нет «кражи убийств»)
-	KillRewardWaveScale = 0.04, -- +4 % к награде за волну
-	WaveBonusBase = 120,
-	WaveBonusPerWave = 30,
+	KillRewardWaveScale = 0.06, -- +6 % к награде за волну
+	WaveBonusBase = 150,
+	WaveBonusPerWave = 45,
 	BossBonus = 250, -- дополнительно каждому за убитого босса
 
 	-- Гемы тратятся в магазине башен (цены — Config/Towers, поле Price)
 	Gems = {
-		PerWave = 4,
+		PerWave = 5,
 		Victory = 150,
 		PerKills = 0.15,
 	},

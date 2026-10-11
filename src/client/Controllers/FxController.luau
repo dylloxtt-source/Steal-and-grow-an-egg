@@ -121,11 +121,11 @@ local function handle(entry: any)
 		Sound.Play("Sell", 0.5)
 	elseif kind == "leak" then
 		Sound.Play("BaseHit", 0.6)
-		FxController.Banner:Fire("-" .. tostring(entry.n) .. " ❤", Color3.fromRGB(255, 90, 100), true)
+		FxController.Banner:Fire("-" .. tostring(entry.n), Color3.fromRGB(255, 70, 70), true)
 	elseif kind == "wave" then
 		Sound.Play("WaveStart", 0.5)
-		local subtitle = if entry.boss then "☠ BOSS WAVE" elseif entry.elite then "⚠ ELITE WAVE" else nil
-		FxController.Banner:Fire("WAVE " .. entry.n, if entry.boss then Color3.fromRGB(255, 80, 96) elseif entry.elite then Color3.fromRGB(255, 160, 60) else Color3.fromRGB(255, 255, 255),
+		local subtitle = if entry.boss then "Boss Wave!" elseif entry.elite then "Elite Wave" else nil
+		FxController.Banner:Fire("Wave " .. entry.n, if entry.boss then Color3.fromRGB(255, 80, 96) elseif entry.elite then Color3.fromRGB(255, 160, 60) else Color3.fromRGB(255, 255, 255),
 			false, subtitle)
 	elseif kind == "boss" then
 		Sound.Play("BossSpawn", 0.8)

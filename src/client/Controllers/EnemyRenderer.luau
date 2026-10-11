@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MapLayout = require(Shared.Logic.MapLayout)
+local Format = require(Shared.Logic.Format)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 
@@ -32,30 +33,49 @@ local function motor(model: Model, name: string): Motor6D?
 	return nil
 end
 
+local DISPLAY = Font.new("rbxasset://fonts/families/FredokaOne.json")
+
+-- Полоска здоровья над врагом: число HP на полоске, щит — синей полосой,
+-- у элиты и боссов — имя. Видна сквозь стены и деревья (AlwaysOnTop).
 local function hpBar(model: Model, boss: boolean): any
 	local head = model:FindFirstChild("Head") :: BasePart?
 	if not head then
 		return nil
 	end
+	local elite = model:GetAttribute("Elite") == true
+	local named = boss or elite
+	local width = if boss then 190 elseif elite then 110 else 76
+	local height = if boss then 22 elseif elite then 16 else 14
 	local gui = Kit.Create("BillboardGui", {
 		Name = "HpBar",
-		Size = if boss then UDim2.fromOffset(150, 18) else UDim2.fromOffset(56, 8),
-		StudsOffsetWorldSpace = Vector3.new(0, 1.6 * ((model:GetAttribute("Scale") :: number?) or 1), 0),
-		AlwaysOnTop = false,
-		MaxDistance = 140,
+		Size = UDim2.fromOffset(width, height + (if named then 18 else 0) + 14),
+		StudsOffsetWorldSpace = Vector3.new(0, 1.9 * ((model:GetAttribute("Scale") :: number?) or 1), 0),
+		AlwaysOnTop = true,
+		MaxDistance = if boss then 400 else 220,
 		LightInfluence = 0,
 		Adornee = head,
 		Parent = head,
 	})
-	local back = Kit.Create("Frame", { BackgroundColor3 = C.Background, BackgroundTransparency = 0.25, Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Parent = gui })
-	Kit.Corner(back, 4)
+	local nameLabel = nil
+	if named then
+		nameLabel = Kit.Create("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = tostring(model:GetAttribute("DisplayName") or ""),
+			FontFace = DISPLAY, TextSize = if boss then 18 else 14, TextColor3 = if boss then C.Red else C.Orange, TextStrokeTransparency = 0,
+			TextStrokeColor3 = C.Black, Parent = gui })
+	end
+	local back = Kit.Create("Frame", { BackgroundColor3 = C.Black, BackgroundTransparency = 0.2, Size = UDim2.new(1, 0, 0, height),
+		Position = UDim2.new(0, 0, 1, -height), BorderSizePixel = 0, Parent = gui })
+	Kit.Corner(back, 5)
+	Kit.Create("UIStroke", { Thickness = 2, Color = C.Black, Parent = back })
 	local fill = Kit.Create("Frame", { BackgroundColor3 = if boss then C.Red else C.Green, Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Parent = back })
-	Kit.Corner(fill, 4)
-	local shield = Kit.Create("Frame", { BackgroundColor3 = C.Accent, Size = UDim2.new(0, 0, 0.35, 0), Position = UDim2.fromScale(0, 0.65),
-		BorderSizePixel = 0, Parent = back })
-	local icon = Kit.Text({ Text = "", Size = UDim2.fromOffset(40, 20), Position = UDim2.new(0.5, 0, 0, -22), AnchorPoint = Vector2.new(0.5, 0),
-		TextXAlignment = Enum.TextXAlignment.Center, TextSize = 14, Parent = gui })
-	return { Gui = gui, Fill = fill, Shield = shield, Icon = icon }
+	Kit.Corner(fill, 5)
+	Kit.Gradient(fill, Color3.fromRGB(255, 255, 255), Color3.fromRGB(175, 175, 175))
+	local shield = Kit.Create("Frame", { BackgroundColor3 = C.Accent, Size = UDim2.new(0, 0, 0.32, 0), Position = UDim2.fromScale(0, 0.68),
+		BorderSizePixel = 0, ZIndex = 2, Parent = back })
+	local hpText = Kit.Create("TextLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "", FontFace = DISPLAY,
+		TextSize = height - 2, TextColor3 = C.White, TextStrokeTransparency = 0, TextStrokeColor3 = C.Black, ZIndex = 3, Parent = back })
+	local status = Kit.Create("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -height - 14 - (if named then 18 else 0)),
+		Text = "", FontFace = DISPLAY, TextSize = 12, TextColor3 = C.Gold, TextStrokeTransparency = 0, TextStrokeColor3 = C.Black, Parent = gui })
+	return { Gui = gui, Fill = fill, Shield = shield, Icon = status, Hp = hpText, Name = nameLabel }
 end
 
 local function track(model: Instance)
@@ -183,8 +203,23 @@ local function animate(state: any, now: number, dt: number)
 		local maxShield = model:GetAttribute("MaxShield") or 0
 		bar.Fill.Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1)
 		bar.Fill.BackgroundColor3 = if model:GetAttribute("Boss") then C.Red elseif hp / maxHp < 0.35 then C.Orange else C.Green
-		bar.Shield.Size = UDim2.new(if maxShield > 0 then math.clamp(shield / maxShield, 0, 1) else 0, 0, 0.35, 0)
-		bar.Icon.Text = (if stunned then "💫" else "") .. (if model:GetAttribute("Poisoned") then "☣" else "")
+		bar.Shield.Size = UDim2.new(if maxShield > 0 then math.clamp(shield / maxShield, 0, 1) else 0, 0, 0.32, 0)
+		local shown = math.ceil(hp + shield)
+		if bar.Shown ~= shown then
+			bar.Shown = shown
+			bar.Hp.Text = Format.Number(shown)
+		end
+		local tags = {}
+		if stunned then
+			table.insert(tags, "STUNNED")
+		end
+		if model:GetAttribute("Poisoned") then
+			table.insert(tags, "POISONED")
+		end
+		if state.Stealth then
+			table.insert(tags, "HIDDEN")
+		end
+		bar.Icon.Text = table.concat(tags, " ")
 	end
 end
 

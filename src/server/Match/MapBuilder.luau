@@ -11,6 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Maps = require(Shared.Config.Maps)
 local MapLayout = require(Shared.Logic.MapLayout)
 local Parts = require(Shared.Visual.Parts)
+local Studs = require(Shared.Visual.Studs)
 
 local MapBuilder = {}
 
@@ -474,6 +475,7 @@ function MapBuilder.Build(mapId: string, origin: Vector3, parent: Instance): Fol
 			builder(ctx, item, cf, item.Scale)
 		end
 	end
+	Studs.Apply(folder) -- классический студ-стиль: пластик со студами
 	folder.Parent = parent
 	return folder
 end

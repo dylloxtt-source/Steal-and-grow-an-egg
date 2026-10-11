@@ -79,8 +79,9 @@ local function run(mapId: string)
 	if verbose then
 		local original = match.Enemies.Leak
 		match.Enemies.Leak = function(self, enemy)
-			if enemy.Def.Boss or enemy.Def.Elite then
-				print(string.format("   LEAK %s hp %d/%d shield %d wave %d", enemy.Def.Name, enemy.Health, enemy.MaxHealth, enemy.Shield, match.Waves.Wave))
+			if enemy.Def.Boss or enemy.Def.Elite or verbose then
+				print(string.format("   LEAK %s hp %d/%d shield %d wave %d dist %.0f/%.0f alive %.0fs armor %d", enemy.Def.Name, enemy.Health, enemy.MaxHealth,
+					enemy.Shield, match.Waves.Wave, enemy.Distance, match.Path.Length, match.Time - enemy.SpawnTime, enemy.Armor))
 			end
 			return original(self, enemy)
 		end
@@ -95,10 +96,10 @@ local function run(mapId: string)
 			nextDecision = match.Time + 1
 			for pi, player in players do
 				local state = match.PlayerState[player.UserId]
-				-- Жадная стратегия: действие с наибольшим приростом DPS на монету
+				-- Жадная стратегия: из доступных по деньгам действий — наибольший прирост DPS на монету
 				local bestAction, bestValue = nil, 0
 				for _, tower in match.Towers.List do
-					if tower.OwnerId == player.UserId and tower.Level < 5 then
+					if tower.OwnerId == player.UserId and tower.Level < 5 and tower.Def.Levels[tower.Level + 1].Cost <= state.Cash then
 						local nextStats = tower.Def.Levels[tower.Level + 1]
 						local gain = Towers.Dps(nextStats) - Towers.Dps(tower.Stats) + (if nextStats.Detect and not tower.Stats.Detect then 15 else 0)
 						local value = gain / nextStats.Cost
@@ -113,7 +114,7 @@ local function run(mapId: string)
 					local nextTower = ORDER[(placedIndex[pi] % #ORDER) + 1]
 					local def = Towers.ById[nextTower]
 					local value = Towers.Dps(def.Levels[1]) * 1.4 / def.Levels[1].Cost
-					if value > bestValue or bestAction == nil then
+					if def.Levels[1].Cost <= state.Cash and (value > bestValue or bestAction == nil) then
 						bestAction, bestValue = { Kind = "place", TowerId = nextTower, Cost = def.Levels[1].Cost }, value
 					end
 				end

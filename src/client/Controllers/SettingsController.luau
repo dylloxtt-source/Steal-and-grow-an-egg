@@ -17,10 +17,10 @@ local SettingsController = {}
 local refs: any = {}
 
 local OPTIONS = {
-	{ Key = "autoSkip", Title = "Auto Skip", Icon = "⏭", Text = "Start the next wave as soon as everyone is ready" },
-	{ Key = "sfx", Title = "Sound Effects", Icon = "🔊", Text = "Weapon, wave and interface sounds" },
-	{ Key = "popups", Title = "Reward Popups", Icon = "💵", Text = "Show +$ above defeated enemies" },
-	{ Key = "lowFx", Title = "Low Effects", Icon = "⚡", Text = "Fewer particles for slower devices" },
+	{ Key = "autoSkip", Title = "Auto Skip", Text = "Start the next wave as soon as everyone is ready" },
+	{ Key = "sfx", Title = "Sound Effects", Text = "Weapon, wave and button sounds" },
+	{ Key = "popups", Title = "Cash Popups", Text = "Show +$ when an enemy is defeated" },
+	{ Key = "lowFx", Title = "Low Graphics", Text = "Fewer effects for slower devices" },
 }
 
 SettingsController.Changed = Instance.new("BindableEvent") -- (key, value)
@@ -67,14 +67,12 @@ local function build(screen: Instance)
 	local window = Root.Fit(Kit.Panel({ Name = "Window", Size = UDim2.fromOffset(480, 72 + #OPTIONS * 76), Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5), Parent = layer }))
 	refs.Window = window
-	Kit.Header(window, { Title = "SETTINGS", Icon = "⚙", Accent = C.PanelLighter, OnClose = SettingsController.Close })
+	Kit.Header(window, { Title = "Settings", Accent = C.Accent, OnClose = SettingsController.Close })
 	refs.Toggles = {}
 	for i, option in OPTIONS do
 		local row = Kit.Inset({ Name = option.Key, Size = UDim2.new(1, -28, 0, 66), Position = UDim2.fromOffset(14, 64 + (i - 1) * 76), Parent = window })
-		Kit.Text({ Text = option.Icon, Size = UDim2.fromOffset(44, 66), Position = UDim2.fromOffset(6, 0), TextSize = 24, TextXAlignment = Enum.TextXAlignment.Center,
-			Parent = row })
-		Kit.Text({ Text = option.Title, Font = "Display", TextSize = 19, Size = UDim2.new(1, -140, 0, 24), Position = UDim2.fromOffset(54, 10), Stroke = true, Parent = row })
-		Kit.Text({ Text = option.Text, TextSize = 12, Weight = "Semi", TextColor3 = C.SubText, Size = UDim2.new(1, -140, 0, 18), Position = UDim2.fromOffset(54, 36),
+		Kit.Text({ Text = option.Title, Font = "Display", TextSize = 19, Size = UDim2.new(1, -140, 0, 24), Position = UDim2.fromOffset(16, 10), Stroke = true, Parent = row })
+		Kit.Text({ Text = option.Text, TextSize = 12, Weight = "Semi", TextColor3 = C.SubText, Size = UDim2.new(1, -110, 0, 18), Position = UDim2.fromOffset(16, 36),
 			Parent = row })
 		refs.Toggles[option.Key] = Kit.Toggle({ Name = "Toggle", Value = SettingsController.Get(option.Key), Position = UDim2.new(1, -14, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5), Parent = row, OnChanged = function(value)

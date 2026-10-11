@@ -280,8 +280,8 @@ local function updateBooths()
 		local color = services.LobbyService.StateColors[elevator.State]
 		booth.Strip.Color = color
 		booth.FloorGlow.Color = color
-		booth.MapLabel.Text = "🗺 " .. Maps.ById[elevator.MapId].Name
-		booth.PlayersLabel.Text = string.format("👥 %d / %d", #elevator.Members, elevator.Capacity)
+		booth.MapLabel.Text = Maps.ById[elevator.MapId].Name
+		booth.PlayersLabel.Text = string.format("Players %d/%d", #elevator.Members, elevator.Capacity)
 		local status = ({
 			Empty = "Open — step in!",
 			Waiting = "Waiting " .. Format.Time(elevator.Timer),

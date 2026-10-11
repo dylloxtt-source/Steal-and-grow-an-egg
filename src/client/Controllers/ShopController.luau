@@ -47,7 +47,7 @@ local function buildCard(parent: Instance, def: any, index: number)
 	local stroke = Kit.Stroke(card, 0.6, 3, rarity)
 	local glow = Kit.Create("Frame", { BackgroundColor3 = rarity, BackgroundTransparency = 0.55, Size = UDim2.new(1, 0, 0.62, 0), BorderSizePixel = 0, Parent = card })
 	Kit.Gradient(glow, Color3.fromRGB(255, 255, 255), Color3.fromRGB(40, 40, 50))
-	Kit.Text({ Text = string.upper(def.Rarity), Font = "Display", TextSize = 11, TextColor3 = rarity, Size = UDim2.new(1, -10, 0, 16), Position = UDim2.fromOffset(8, 4),
+	Kit.Text({ Text = def.Rarity, Font = "Display", TextSize = 12, TextColor3 = rarity, Size = UDim2.new(1, -10, 0, 16), Position = UDim2.fromOffset(8, 4),
 		Stroke = true, Parent = card })
 	Preview.Tower(def.Id, 1, card, UDim2.new(1, 0, 0, 104), UDim2.fromOffset(0, 12), "upper")
 	Kit.Text({ Text = def.Name, Font = "Display", TextSize = 15, Size = UDim2.new(1, -10, 0, 20), Position = UDim2.fromOffset(5, 116),
@@ -75,7 +75,7 @@ local function buildDetail(parent: Instance)
 	refs.DetailRarity = Kit.Badge({ Text = "", Size = UDim2.fromOffset(96, 22), Position = UDim2.fromOffset(152, 34), TextSize = 12, Parent = detail })
 	refs.DetailRole = Kit.Text({ Text = "", Size = UDim2.new(1, -152, 0, 18), Position = UDim2.fromOffset(152, 62), TextSize = 14, Weight = "Bold",
 		TextColor3 = C.SubText, Parent = detail })
-	refs.Action = Kit.Button({ Name = "Action", Text = "BUY", Variant = "Purple", Size = UDim2.new(1, -152, 0, 52), Position = UDim2.fromOffset(152, 98),
+	refs.Action = Kit.Button({ Name = "Action", Text = "Buy", Variant = "Purple", Size = UDim2.new(1, -152, 0, 52), Position = UDim2.fromOffset(152, 98),
 		TextSize = 20, Parent = detail, OnClick = function()
 			ShopController.Act()
 		end })
@@ -96,9 +96,9 @@ end
 
 local function buildLoadout(parent: Instance)
 	local strip = Kit.Inset({ Name = "Loadout", Size = UDim2.new(1, -32, 0, 156), Position = UDim2.new(0, 16, 1, -168), Parent = parent })
-	refs.LoadoutTitle = Kit.Text({ Text = "YOUR LOADOUT", Font = "Display", TextSize = 17, Size = UDim2.fromOffset(300, 22), Position = UDim2.fromOffset(14, 8),
+	refs.LoadoutTitle = Kit.Text({ Text = "Loadout", Font = "Display", TextSize = 17, Size = UDim2.fromOffset(300, 22), Position = UDim2.fromOffset(14, 8),
 		Stroke = true, Parent = strip })
-	Kit.Text({ Text = "Up to " .. Towers.LoadoutSize .. " towers come with you into a match. Click a slot, then Equip.", TextSize = 12, Weight = "Semi",
+	Kit.Text({ Text = "Pick a slot, then press Equip", TextSize = 12, Weight = "Semi",
 		TextColor3 = C.SubText, Size = UDim2.fromOffset(560, 18), Position = UDim2.new(1, -14, 0, 10), AnchorPoint = Vector2.new(1, 0),
 		TextXAlignment = Enum.TextXAlignment.Right, Parent = strip })
 	local row = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -28, 0, 110), Position = UDim2.fromOffset(14, 36), Parent = strip })
@@ -113,9 +113,9 @@ local function buildLoadout(parent: Instance)
 			Parent = slot })
 		local name = Kit.Text({ Text = "", Font = "Display", TextSize = 14, Size = UDim2.new(1, -8, 0, 18), Position = UDim2.new(0, 4, 1, -22),
 			TextXAlignment = Enum.TextXAlignment.Center, Stroke = true, ZIndex = 3, Parent = slot })
-		local empty = Kit.Text({ Text = "+\nEMPTY", Font = "Display", TextSize = 16, TextColor3 = C.Muted, Size = UDim2.fromScale(1, 1),
+		local empty = Kit.Text({ Text = "Empty", Font = "Display", TextSize = 16, TextColor3 = C.Muted, Size = UDim2.fromScale(1, 1),
 			TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.None, Parent = slot })
-		local remove = Kit.Button({ Name = "Remove", Text = "✕", Variant = "Danger", Size = UDim2.fromOffset(28, 30), Position = UDim2.new(1, -6, 0, 6),
+		local remove = Kit.Button({ Name = "Remove", Text = "X", Variant = "Danger", Size = UDim2.fromOffset(28, 30), Position = UDim2.new(1, -6, 0, 6),
 			AnchorPoint = Vector2.new(1, 0), TextSize = 13, Radius = 8, ZIndex = 4, Parent = slot, OnClick = function()
 				local towerId = profile().loadout[i]
 				if towerId then
@@ -148,8 +148,8 @@ local function build(screen: Instance)
 	local window = Root.Fit(Kit.Panel({ Name = "Window", Size = UDim2.fromOffset(1000, 600), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
 		Parent = layer }))
 	refs.Window = window
-	Kit.Header(window, { Title = "TOWER SHOP", Icon = "🛒", Accent = C.Gold, OnClose = ShopController.Close })
-	refs.Gems = Kit.Pill({ Icon = "💎", Text = "0", Color = C.Gem, Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -62, 0, 7), AnchorPoint = Vector2.new(1, 0),
+	Kit.Header(window, { Title = "Tower Shop", Accent = C.Gold, OnClose = ShopController.Close })
+	refs.Gems = Kit.Pill({ Icon = "gem", Text = "0", Color = C.Gem, Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -62, 0, 7), AnchorPoint = Vector2.new(1, 0),
 		Parent = window })
 	refs.Gems.Frame.ZIndex = 3
 
@@ -184,7 +184,7 @@ function ShopController.Act()
 		State.Fire("BuyTower", { tower = selected }, function(ok)
 			if ok then
 				Sound.Play("Upgrade")
-				State.Notify:Fire("🎉 Unlocked " .. def.Name .. "!", "gem")
+				State.Notify:Fire("Unlocked " .. def.Name .. "!", "gem")
 			end
 			ShopController.Refresh()
 		end)
@@ -211,7 +211,7 @@ function ShopController.Refresh()
 		local def = Towers.ById[id]
 		local owned = data.owned[id] == true
 		local equipped = slotOf(id) ~= nil
-		card.Status.Text = if equipped then "✔ EQUIPPED" elseif owned then "OWNED" else "💎 " .. Format.Thousands(def.Price)
+		card.Status.Text = if equipped then "Equipped" elseif owned then "Owned" else Format.Thousands(def.Price) .. " Gems"
 		card.Status.BackgroundColor3 = if equipped then C.Green elseif owned then C.PanelLighter elseif data.gems >= def.Price then C.Purple else C.PanelLighter
 		card.Status.TextColor3 = if not owned and data.gems < def.Price then C.Gem else C.White
 		card.Stroke.Transparency = if id == selected then 0 else 0.65
@@ -226,33 +226,33 @@ function ShopController.Refresh()
 		Preview.Tower(selected, Towers.MaxLevel, refs.DetailView, UDim2.fromScale(1, 1), nil, "upper")
 	end
 	refs.DetailViewStroke.Color = rarity
-	refs.DetailName.Text = def.Icon .. " " .. def.Name
-	refs.DetailRarity.Text = string.upper(def.Rarity)
+	refs.DetailName.Text = def.Name
+	refs.DetailRarity.Text = def.Rarity
 	refs.DetailRarity.BackgroundColor3 = rarity
 	refs.DetailRole.Text = def.Role
 	refs.DetailDesc.Text = def.Description
 	for i, label in refs.LevelRows do
 		local level = def.Levels[i]
-		label.Text = string.format("%s  •  %s  •  ⚔ %s  ◎ %s  ⚡ %s", level.Text, Format.Cash(level.Cost), Format.Number(level.Damage),
+		label.Text = string.format("%s   %s   DMG %s   RNG %s   %s", level.Text, Format.Cash(level.Cost), Format.Number(level.Damage),
 			Format.Decimal(level.Range), TowerText.FireRate(level))
 	end
 	local owned = data.owned[selected] == true
 	local equipped = slotOf(selected)
 	if not owned then
-		Kit.SetText(refs.Action, "BUY  💎 " .. Format.Thousands(def.Price))
+		Kit.SetText(refs.Action, "Buy for " .. Format.Thousands(def.Price) .. " Gems")
 		Kit.SetVariant(refs.Action, if data.gems >= def.Price then "Purple" else "Disabled")
 	elseif equipped and not selectedSlot then
-		Kit.SetText(refs.Action, if #data.loadout <= 1 then "EQUIPPED" else "UNEQUIP")
+		Kit.SetText(refs.Action, if #data.loadout <= 1 then "Equipped" else "Unequip")
 		Kit.SetVariant(refs.Action, if #data.loadout <= 1 then "Disabled" else "Danger")
 	elseif selectedSlot then
-		Kit.SetText(refs.Action, "EQUIP TO SLOT " .. selectedSlot)
+		Kit.SetText(refs.Action, "Equip to slot " .. selectedSlot)
 		Kit.SetVariant(refs.Action, "Success")
 	else
-		Kit.SetText(refs.Action, if #data.loadout >= Towers.LoadoutSize then "LOADOUT FULL" else "EQUIP")
+		Kit.SetText(refs.Action, if #data.loadout >= Towers.LoadoutSize then "Loadout full" else "Equip")
 		Kit.SetVariant(refs.Action, if #data.loadout >= Towers.LoadoutSize then "Disabled" else "Success")
 	end
 
-	refs.LoadoutTitle.Text = string.format("YOUR LOADOUT  %d / %d", #data.loadout, Towers.LoadoutSize)
+	refs.LoadoutTitle.Text = string.format("Loadout %d/%d", #data.loadout, Towers.LoadoutSize)
 	for i, slot in refs.Slots do
 		local towerId = data.loadout[i]
 		slot.Empty.Visible = towerId == nil

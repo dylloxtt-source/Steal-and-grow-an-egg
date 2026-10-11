@@ -57,7 +57,7 @@ end
 
 -- Тёмный контур вокруг блока: отделяет интерфейс от яркого 3D-мира
 function Kit.Outline(parent: Instance, thickness: number?, transparency: number?): UIStroke
-	return Kit.Stroke(parent, transparency or 0.15, thickness or 2, C.Outline)
+	return Kit.Stroke(parent, transparency or 0, thickness or 3, C.Outline)
 end
 
 function Kit.Padding(parent: Instance, all: number, horizontal: number?)
@@ -112,7 +112,7 @@ function Kit.Text(props: TextProps): TextLabel
 		end
 	end
 	if props.Stroke or props.Shadow then
-		Kit.Create("UIStroke", { Thickness = props.StrokeThickness or 1.6, Transparency = 0.1, Color = C.Outline, Parent = label })
+		Kit.Create("UIStroke", { Thickness = props.StrokeThickness or 2, Transparency = 0, Color = C.Outline, Parent = label })
 	end
 	label.Parent = props.Parent
 	return label
@@ -132,7 +132,7 @@ function Kit.Panel(props: { [string]: any }): Frame
 	end
 	Kit.Corner(frame, props.Radius)
 	Kit.Outline(frame)
-	Kit.Gradient(frame, Color3.fromRGB(255, 255, 255), Color3.fromRGB(196, 202, 216))
+	Kit.Gradient(frame, Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 176, 200))
 	frame.Parent = props.Parent
 	return frame
 end
@@ -281,7 +281,56 @@ function Kit.Bar(parent: Instance, color: Color3, size: UDim2?, position: UDim2?
 	return bar
 end
 
-export type Pill = { Frame: Frame, Label: TextLabel, Icon: TextLabel, Set: (Pill, string) -> () }
+------------------------------------------------------------------------
+-- Нарисованные значки (без эмодзи): монета, гем, сердце, звезда
+------------------------------------------------------------------------
+
+local function disk(parent: Instance, color: Color3, size: UDim2, position: UDim2, z: number?): Frame
+	local frame = Kit.Create("Frame", { BackgroundColor3 = color, Size = size, Position = position, AnchorPoint = Vector2.new(0.5, 0.5),
+		BorderSizePixel = 0, ZIndex = z or 1, Parent = parent })
+	Kit.Round(frame)
+	return frame
+end
+
+function Kit.Icon(kind: string, parent: Instance, size: number, position: UDim2?, z: number?): Frame
+	local holder = Kit.Create("Frame", { Name = "Icon_" .. kind, BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size),
+		Position = position or UDim2.new(), ZIndex = z or 1, Parent = parent })
+	local zi = (z or 1) + 1
+	if kind == "coin" then
+		local outer = disk(holder, C.GoldDark, UDim2.fromScale(1, 1), UDim2.fromScale(0.5, 0.5), zi)
+		Kit.Stroke(outer, 0, 2, C.Outline)
+		local inner = disk(holder, C.Gold, UDim2.fromScale(0.74, 0.74), UDim2.fromScale(0.5, 0.5), zi)
+		Kit.Gradient(inner, Color3.fromRGB(255, 255, 255), Color3.fromRGB(205, 205, 205))
+		Kit.Text({ Text = "$", Font = "Display", TextSize = math.floor(size * 0.62), TextColor3 = C.GoldDark, Size = UDim2.fromScale(1, 1),
+			TextXAlignment = Enum.TextXAlignment.Center, ZIndex = zi + 1, Parent = holder })
+	elseif kind == "gem" then
+		local back = Kit.Create("Frame", { BackgroundColor3 = C.PurpleDark, Size = UDim2.fromScale(0.68, 0.68), Position = UDim2.fromScale(0.5, 0.5),
+			AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BorderSizePixel = 0, ZIndex = zi, Parent = holder })
+		Kit.Corner(back, math.max(2, math.floor(size * 0.1)))
+		Kit.Stroke(back, 0, 2, C.Outline)
+		Kit.Gradient(back, Color3.fromRGB(255, 220, 255), Color3.fromRGB(150, 90, 220), 45)
+		local shine = Kit.Create("Frame", { BackgroundColor3 = C.White, BackgroundTransparency = 0.35, Size = UDim2.fromScale(0.22, 0.22),
+			Position = UDim2.fromScale(0.36, 0.32), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BorderSizePixel = 0, ZIndex = zi + 1, Parent = holder })
+		Kit.Corner(shine, 2)
+	elseif kind == "heart" or kind == "heartEmpty" then
+		local color = if kind == "heart" then C.Red else Color3.fromRGB(70, 70, 86)
+		-- Контур: чёрное сердце чуть больше, сверху — цветное
+		for layer, scale in { 1, 0.78 } do
+			local col = if layer == 1 then C.Outline else color
+			local sq = Kit.Create("Frame", { BackgroundColor3 = col, Size = UDim2.fromScale(0.5 * scale, 0.5 * scale), Position = UDim2.fromScale(0.5, 0.56),
+				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BorderSizePixel = 0, ZIndex = zi + layer, Parent = holder })
+			Kit.Corner(sq, 2)
+			disk(holder, col, UDim2.fromScale(0.42 * scale, 0.42 * scale), UDim2.fromScale(0.5 - 0.17 * scale, 0.4), zi + layer)
+			disk(holder, col, UDim2.fromScale(0.42 * scale, 0.42 * scale), UDim2.fromScale(0.5 + 0.17 * scale, 0.4), zi + layer)
+		end
+	elseif kind == "star" then
+		Kit.Text({ Text = "*", Font = "Display", TextSize = math.floor(size * 1.4), TextColor3 = C.Gold, Size = UDim2.fromScale(1, 1.2),
+			TextXAlignment = Enum.TextXAlignment.Center, Stroke = true, ZIndex = zi, Parent = holder })
+	end
+	return holder
+end
+
+export type Pill = { Frame: Frame, Label: TextLabel, Icon: Frame, Set: (Pill, string) -> () }
 
 -- Плашка «иконка + значение» (деньги, гемы, победы)
 function Kit.Pill(props: { [string]: any }): Pill
@@ -291,8 +340,7 @@ function Kit.Pill(props: { [string]: any }): Pill
 	Kit.Round(frame)
 	Kit.Outline(frame, 2, 0.1)
 	local h = (props.Size and props.Size.Y.Offset) or 40
-	local icon = Kit.Text({ Text = props.Icon or "", Size = UDim2.fromOffset(h, h), Position = UDim2.fromOffset(4, 0), TextSize = math.floor(h * 0.55),
-		TextXAlignment = Enum.TextXAlignment.Center, Parent = frame })
+	local icon = Kit.Icon(props.Icon or "coin", frame, h - 10, UDim2.fromOffset(6, 5))
 	local label = Kit.Text({ Text = props.Text or "", Font = "Display", Size = UDim2.new(1, -(h + 12), 1, 0), Position = UDim2.fromOffset(h + 2, 0),
 		TextSize = props.TextSize or math.floor(h * 0.55), TextColor3 = props.Color or C.Text, Stroke = true, Parent = frame })
 	local pill = { Frame = frame, Label = label, Icon = icon } :: any
@@ -413,11 +461,11 @@ function Kit.Header(panel: Instance, props: { [string]: any }): (Frame, TextButt
 	local fill = Kit.Create("Frame", { BackgroundColor3 = accent, Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -14),
 		BorderSizePixel = 0, Parent = header })
 	Kit.Gradient(fill, Color3.fromRGB(170, 170, 180), Color3.fromRGB(150, 150, 160))
-	Kit.Text({ Name = "Title", Text = (if props.Icon then props.Icon .. "  " else "") .. props.Title, Font = "Display", TextSize = props.TextSize or 26,
+	Kit.Text({ Name = "Title", Text = props.Title, Font = "Display", TextSize = props.TextSize or 28,
 		Size = UDim2.new(1, -120, 1, 0), Position = UDim2.fromOffset(18, 0), Stroke = true, StrokeThickness = 2, ZIndex = 2, Parent = header })
 	local close = nil
 	if props.OnClose then
-		close = Kit.Button({ Name = "Close", Text = "✕", Variant = "Danger", Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -10, 0.5, 0),
+		close = Kit.Button({ Name = "Close", Text = "X", Variant = "Danger", Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -10, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5), TextSize = 18, Radius = 10, ZIndex = 3, Parent = header, OnClick = props.OnClose })
 	end
 	return header, close

@@ -283,7 +283,7 @@ for _, e in match.Enemies.Alive do
 		e.Health = math.floor(e.MaxHealth * 0.62)
 	end
 end
-match.BaseHealth = 84
+match.BaseHealth = 2
 match:MarkDirty()
 tick(0.3)
 local towerModel = nil
@@ -310,8 +310,8 @@ match.Waves.Queue = {}
 for _, e in table.clone(match.Enemies.Alive) do
 	match.Enemies:Kill(e)
 end
-match.WavesCleared = 30
-match.Waves.Wave = 30
+match.WavesCleared = 20
+match.Waves.Wave = 20
 match:Finish(true)
 tick(0.3)
 scene("results")

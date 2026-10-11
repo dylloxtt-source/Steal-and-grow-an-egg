@@ -47,11 +47,11 @@ local HOTKEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.K
 	Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight }
 
 local PHASE_STYLE = {
-	Prep = { "PREPARE", C.Accent },
-	Wave = { "WAVE IN PROGRESS", C.Red },
-	Intermission = { "WAVE CLEARED", C.Green },
-	Victory = { "VICTORY!", C.Gold },
-	Defeat = { "DEFEAT", C.Red },
+	Prep = { "Get ready", C.Accent },
+	Wave = { "Wave in progress", C.Red },
+	Intermission = { "Wave cleared", C.Green },
+	Victory = { "Victory!", C.Gold },
+	Defeat = { "Defeat", C.Red },
 }
 
 -- Башни, доступные в этом матче: набор игрока из снимка (сервер), иначе из профиля
@@ -74,13 +74,19 @@ local function buildTop()
 	Kit.List(top, 6, false, Enum.HorizontalAlignment.Center)
 	local wave = Kit.Panel({ Name = "Wave", Size = UDim2.fromOffset(600, 88), LayoutOrder = 1, Parent = top })
 	refs.WavePanel = wave
-	refs.Wave = Kit.Text({ Text = "WAVE 0", Font = "Display", TextSize = 34, Size = UDim2.fromOffset(240, 40), Position = UDim2.fromOffset(18, 4),
-		Stroke = true, StrokeThickness = 2, Parent = wave })
-	refs.MaxWave = Kit.Text({ Text = "/ 30", Font = "Display", TextSize = 18, TextColor3 = C.SubText, Size = UDim2.fromOffset(80, 24),
-		Position = UDim2.fromOffset(150, 16), Stroke = true, Parent = wave })
+	refs.Wave = Kit.Text({ Text = "Wave 0", Font = "Display", TextSize = 36, RichText = true, Size = UDim2.fromOffset(280, 42), Position = UDim2.fromOffset(18, 4),
+		Stroke = true, StrokeThickness = 2.5, Parent = wave })
 	refs.Phase = Kit.Badge({ Text = "", Color = C.Accent, Size = UDim2.fromOffset(250, 26), Position = UDim2.fromOffset(18, 48), TextSize = 14, Parent = wave })
-	Kit.Text({ Text = "❤  BASE", Font = "Display", TextSize = 16, Size = UDim2.fromOffset(150, 22), Position = UDim2.fromOffset(318, 10), Stroke = true, Parent = wave })
-	refs.BaseBar = Kit.Bar(wave, C.Green, UDim2.fromOffset(264, 26), UDim2.fromOffset(318, 38), 15)
+	Kit.Text({ Text = "Lives", Font = "Display", TextSize = 18, Size = UDim2.fromOffset(150, 22), Position = UDim2.fromOffset(340, 8), Stroke = true, Parent = wave })
+	refs.Hearts = {}
+	for i = 1, 3 do
+		local full = Kit.Icon("heart", wave, 42, UDim2.fromOffset(334 + (i - 1) * 50, 32))
+		local empty = Kit.Icon("heartEmpty", wave, 42, UDim2.fromOffset(334 + (i - 1) * 50, 32))
+		empty.Visible = false
+		refs.Hearts[i] = { Full = full, Empty = empty }
+	end
+	refs.LivesText = Kit.Text({ Text = "", Font = "Display", TextSize = 16, TextColor3 = C.SubText, Size = UDim2.fromOffset(90, 40),
+		Position = UDim2.fromOffset(490, 34), Stroke = true, Parent = wave })
 	refs.Progress = Kit.Bar(wave, C.Gold, UDim2.new(1, -36, 0, 6), UDim2.new(0, 18, 1, -11))
 	refs.Leak = Kit.Text({ Text = "", Font = "Display", Size = UDim2.fromOffset(120, 34), Position = UDim2.new(1, 14, 0, 30),
 		TextSize = 28, TextColor3 = C.Red, Stroke = true, StrokeThickness = 2, Visible = false, Parent = wave })
@@ -98,7 +104,7 @@ end
 
 local function buildLeft()
 	local cash = Root.Fit(Kit.Panel({ Name = "Cash", Size = UDim2.fromOffset(236, 86), Position = UDim2.fromOffset(16, 10), Parent = layer }))
-	Kit.Text({ Text = "💵", Size = UDim2.fromOffset(44, 48), Position = UDim2.fromOffset(10, 4), TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center, Parent = cash })
+	Kit.Icon("coin", cash, 40, UDim2.fromOffset(12, 10))
 	refs.Cash = Kit.Text({ Text = "$0", Font = "Display", TextSize = 34, TextColor3 = C.Gold, Size = UDim2.new(1, -66, 0, 44), Position = UDim2.fromOffset(56, 6),
 		Stroke = true, StrokeThickness = 2, Parent = cash })
 	refs.TowerCount = Kit.Text({ Text = "", Font = "Display", TextSize = 14, TextColor3 = C.SubText, Size = UDim2.new(1, -24, 0, 18), Position = UDim2.fromOffset(14, 58),
@@ -109,28 +115,28 @@ local function buildLeft()
 	local controls = Root.Fit(Kit.Create("Frame", { Name = "Controls", BackgroundTransparency = 1, Size = UDim2.fromOffset(206, 240),
 		Position = UDim2.new(0, 16, 0.5, -10), AnchorPoint = Vector2.new(0, 0.5), Parent = layer }))
 	Kit.List(controls, 8)
-	refs.Skip = Kit.Button({ Name = "Skip", Text = "⏭ SKIP", Variant = "Gold", Size = UDim2.fromOffset(206, 52), TextSize = 19, LayoutOrder = 1,
+	refs.Skip = Kit.Button({ Name = "Skip", Text = "Skip", Variant = "Gold", Size = UDim2.fromOffset(206, 52), TextSize = 19, LayoutOrder = 1,
 		Parent = controls, OnClick = function()
 			State.Fire("VoteSkip")
 		end })
 	local auto = Kit.Panel({ Name = "AutoSkip", Size = UDim2.fromOffset(206, 48), LayoutOrder = 2, Parent = controls })
-	Kit.Text({ Text = "AUTO SKIP", Font = "Display", TextSize = 16, Size = UDim2.fromOffset(120, 48), Position = UDim2.fromOffset(14, 0), Stroke = true, Parent = auto })
+	Kit.Text({ Text = "Auto Skip", Font = "Display", TextSize = 17, Size = UDim2.fromOffset(120, 48), Position = UDim2.fromOffset(14, 0), Stroke = true, Parent = auto })
 	refs.AutoSkip = Kit.Toggle({ Value = SettingsController.Get("autoSkip"), Position = UDim2.new(1, -10, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), Parent = auto,
 		OnChanged = function(value)
 			Sound.Play("Click")
 			SettingsController.Set("autoSkip", value)
 		end })
-	refs.Speed = Kit.Button({ Name = "Speed", Text = "⏩ SPEED x2", Variant = "Neutral", Size = UDim2.fromOffset(206, 50), TextSize = 17, LayoutOrder = 3,
+	refs.Speed = Kit.Button({ Name = "Speed", Text = "Speed x2", Variant = "Neutral", Size = UDim2.fromOffset(206, 50), TextSize = 17, LayoutOrder = 3,
 		Parent = controls, OnClick = function()
 			State.Fire("VoteSpeed")
 		end })
 	local row = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(206, 50), LayoutOrder = 4, Parent = controls })
 	Kit.List(row, 8, true)
-	refs.Camera = Kit.Button({ Name = "Camera", Text = "🎥 VIEW", Variant = "Neutral", Size = UDim2.fromOffset(140, 50), TextSize = 16, LayoutOrder = 1, Parent = row,
+	refs.Camera = Kit.Button({ Name = "Camera", Text = "Camera", Variant = "Neutral", Size = UDim2.fromOffset(99, 50), TextSize = 15, LayoutOrder = 1, Parent = row,
 		OnClick = function()
 			HUDController.SetOverview(not overview)
 		end })
-	Kit.Button({ Name = "Settings", Text = "⚙", Variant = "Neutral", Size = UDim2.fromOffset(58, 50), TextSize = 22, LayoutOrder = 2, Parent = row,
+	Kit.Button({ Name = "Settings", Text = "Settings", Variant = "Neutral", Size = UDim2.fromOffset(99, 50), TextSize = 15, LayoutOrder = 2, Parent = row,
 		OnClick = function()
 			Sound.Play("Click")
 			SettingsController.Toggle()
@@ -140,7 +146,7 @@ end
 local function buildTeam()
 	local panel = Root.Fit(Kit.Panel({ Name = "Team", Size = UDim2.fromOffset(250, 150), Position = UDim2.new(1, -16, 0, 10), AnchorPoint = Vector2.new(1, 0),
 		Parent = layer }))
-	Kit.Text({ Text = "TEAM", Font = "Display", TextSize = 15, TextColor3 = C.SubText, Size = UDim2.new(1, -24, 0, 22), Position = UDim2.fromOffset(12, 4),
+	Kit.Text({ Text = "Team", Font = "Display", TextSize = 16, TextColor3 = C.SubText, Size = UDim2.new(1, -24, 0, 22), Position = UDim2.fromOffset(12, 4),
 		Stroke = true, Parent = panel })
 	refs.Team = panel
 	refs.TeamRows = {}
@@ -164,11 +170,11 @@ local function buildBottom()
 	local mobile = Kit.Create("Frame", { Name = "PlaceButtons", BackgroundTransparency = 1, Size = UDim2.fromOffset(340, 52),
 		Position = UDim2.new(0.5, 0, 0, 36), AnchorPoint = Vector2.new(0.5, 0), Visible = false, Parent = bottom })
 	Kit.List(mobile, 12, true, Enum.HorizontalAlignment.Center)
-	refs.PlaceButton = Kit.Button({ Name = "Place", Text = "✔ PLACE", Variant = "Success", Size = UDim2.fromOffset(160, 52), LayoutOrder = 1,
+	refs.PlaceButton = Kit.Button({ Name = "Place", Text = "Place", Variant = "Success", Size = UDim2.fromOffset(160, 52), LayoutOrder = 1,
 		Parent = mobile, OnClick = function()
 			PlacementController.Confirm()
 		end })
-	Kit.Button({ Name = "Cancel", Text = "✕ CANCEL", Variant = "Danger", Size = UDim2.fromOffset(160, 52), LayoutOrder = 2, Parent = mobile,
+	Kit.Button({ Name = "Cancel", Text = "Cancel", Variant = "Danger", Size = UDim2.fromOffset(160, 52), LayoutOrder = 2, Parent = mobile,
 		OnClick = function()
 			PlacementController.Stop()
 		end })
@@ -274,11 +280,11 @@ local function refreshTimer()
 	local style = PHASE_STYLE[phase] or { phase, C.Accent }
 	local text = style[1]
 	if phase == "Prep" then
-		text = "PREPARE  •  WAVE 1 IN " .. Format.Time(phaseLeft(match))
+		text = "Get ready! " .. Format.Time(phaseLeft(match))
 	elseif phase == "Intermission" then
-		text = "NEXT WAVE IN " .. Format.Time(phaseLeft(match))
+		text = "Next wave in " .. Format.Time(phaseLeft(match))
 	elseif phase == "Wave" then
-		text = match.enemies .. (if match.enemies == 1 then " ENEMY LEFT" else " ENEMIES LEFT")
+		text = match.enemies .. (if match.enemies == 1 then " enemy left" else " enemies left")
 	end
 	refs.Phase.Text = text
 	refs.Phase.BackgroundColor3 = style[2]
@@ -290,19 +296,20 @@ local function refresh()
 		return
 	end
 	local userId = Players.LocalPlayer.UserId
-	refs.Wave.Text = "WAVE " .. match.wave
-	refs.MaxWave.Text = "/ " .. match.maxWave
-	refs.MaxWave.Position = UDim2.fromOffset(18 + 26 + #tostring(match.wave) * 22 + 92, 16)
+	refs.Wave.Text = string.format('Wave %d<font size="22" color="#C4D2F0"> / %d</font>', match.wave, match.maxWave)
 	refreshTimer()
-	local alpha = if match.baseMaxHp > 0 then match.baseHp / match.baseMaxHp else 0
-	refs.BaseBar:Set(alpha, math.max(0, math.ceil(match.baseHp)) .. " / " .. match.baseMaxHp)
-	refs.BaseBar.Fill.BackgroundColor3 = if alpha > 0.5 then C.Green elseif alpha > 0.25 then C.Orange else C.Red
+	local lives = math.max(0, math.ceil(match.baseHp))
+	for i, heart in refs.Hearts do
+		heart.Full.Visible = i <= lives
+		heart.Empty.Visible = i > lives
+	end
+	refs.LivesText.Text = lives .. "/" .. match.baseMaxHp
 	local total = math.max(1, match.waveTotal or 0)
 	refs.Progress:Set(if match.phase == "Wave" then 1 - math.clamp(match.enemies / total, 0, 1) else (if match.phase == "Prep" then 0 else 1), "")
 
 	local me = State.MyTeamEntry()
 	refs.Cash.Text = Format.Cash(if me then me.cash else 0)
-	refs.TowerCount.Text = string.format("TOWERS  %d / %d", if me then me.towers else 0, match.towerLimit or 15)
+	refs.TowerCount.Text = string.format("Towers %d/%d", if me then me.towers else 0, match.towerLimit or 15)
 
 	for i, row in refs.TeamRows do
 		local entry = match.team[i]
@@ -312,7 +319,7 @@ local function refresh()
 				row.UserId = entry.userId
 				row.Avatar.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", math.max(1, entry.userId))
 			end
-			row.Name.Text = (if entry.autoSkip then "⏭ " else "") .. entry.name
+			row.Name.Text = entry.name
 			row.Name.TextColor3 = if entry.userId == userId then C.Accent else C.Text
 			row.Stats.Text = Format.Cash(entry.cash)
 		end
@@ -322,11 +329,11 @@ local function refresh()
 	local waiting = match.phase == "Prep" or match.phase == "Intermission"
 	refs.Skip.Visible = waiting
 	local skipMine = contains(match.skipBy, userId)
-	Kit.SetText(refs.Skip, string.format("%s  %d/%d", if skipMine then "✔ READY" else "⏭ SKIP", match.skipVotes, match.players))
+	Kit.SetText(refs.Skip, string.format("%s %d/%d", if skipMine then "Ready" else "Skip", match.skipVotes, match.players))
 	Kit.SetVariant(refs.Skip, if skipMine then "Primary" else "Gold")
 	local speedMine = contains(match.speedBy, userId)
 	local fast = (match.timeScale or 1) > 1
-	Kit.SetText(refs.Speed, string.format("%s  %d/%d", if fast then "⏩ x2 ON" else "⏩ SPEED x2", match.speedVotes, match.players))
+	Kit.SetText(refs.Speed, string.format("%s %d/%d", if fast then "x2 On" else "Speed x2", match.speedVotes, match.players))
 	Kit.SetVariant(refs.Speed, if fast then "Primary" elseif speedMine then "Purple" else "Neutral")
 	refs.Speed.Visible = match.phase ~= "Victory" and match.phase ~= "Defeat"
 	if me and me.autoSkip ~= nil and refs.AutoSkip.Value ~= me.autoSkip then
@@ -337,7 +344,7 @@ local function refresh()
 		local entry = match.bosses[i]
 		boss.Panel.Visible = entry ~= nil
 		if entry then
-			boss.Name.Text = "☠  " .. string.upper(entry.name)
+			boss.Name.Text = entry.name
 			boss.Hp:Set(entry.hp / math.max(1, entry.maxHp), Format.Thousands(entry.hp) .. " / " .. Format.Thousands(entry.maxHp))
 			boss.Shield.Frame.Visible = (entry.maxShield or 0) > 0
 			boss.Shield:Set((entry.shield or 0) / math.max(1, entry.maxShield or 1), "")
@@ -455,10 +462,10 @@ local function onPlacementChanged(active: boolean, valid: boolean, reason: strin
 			refs.Reason.BackgroundColor3 = C.Panel
 			refs.Reason.Text = if UserInputService.TouchEnabled
 				then "Tap the ground to move the tower"
-				else "LMB — place   •   Shift+LMB — place more   •   RMB / Q — cancel"
+				else "Click to place  -  hold Shift to place more  -  right click to cancel"
 		else
 			refs.Reason.BackgroundColor3 = C.RedDark
-			refs.Reason.Text = "⛔ " .. (reason or "Can't place here")
+			refs.Reason.Text = reason or "Can't place here"
 		end
 		Kit.SetVariant(refs.PlaceButton, if valid then "Success" else "Disabled")
 	end

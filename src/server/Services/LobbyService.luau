@@ -11,6 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Game = require(Shared.Config.Game)
 local Towers = require(Shared.Config.Towers)
 local Parts = require(Shared.Visual.Parts)
+local Studs = require(Shared.Visual.Studs)
 local TowerModel = require(Shared.Visual.TowerModel)
 
 local LobbyService = {}
@@ -301,6 +302,15 @@ function LobbyService:Start()
 	buildCollection()
 	buildShopPlaceholder()
 	buildDecor()
+	-- Классический студ-стиль для всего лобби (статуи башен — R6-персонажи, их не трогаем)
+	for _, child in folder:GetChildren() do
+		if not (child:IsA("Model") and child:GetAttribute("TowerId")) then
+			if child:IsA("BasePart") then
+				Studs.ApplyPart(child)
+			end
+			Studs.Apply(child)
+		end
+	end
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "LobbySpawn"
@@ -310,8 +320,8 @@ function LobbyService:Start()
 	spawn.Neutral = true
 	spawn.Duration = 0
 	spawn.Color = Color3.fromRGB(90, 200, 255)
-	spawn.Material = Enum.Material.SmoothPlastic
-	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Material = Enum.Material.Plastic
+	spawn.TopSurface = Enum.SurfaceType.Studs
 	spawn.Parent = folder
 
 	-- Персонаж, появившийся во время матча, переносится на карту матча

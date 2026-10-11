@@ -46,14 +46,14 @@ function TowerText.Specials(level: any): { string }
 		table.insert(parts, "frenzy every " .. level.FrenzyEvery .. " attacks")
 	end
 	if level.Detect then
-		table.insert(parts, "👁 hidden detection")
+		table.insert(parts, "sees hidden")
 	end
 	return parts
 end
 
 function TowerText.SpecialLine(level: any): string
 	local parts = TowerText.Specials(level)
-	return if #parts > 0 then table.concat(parts, " • ") else "No special effects"
+	return if #parts > 0 then table.concat(parts, ", ") else ""
 end
 
 function TowerText.FireRate(level: any): string
@@ -67,8 +67,8 @@ end
 -- Короткая подсказка (RichText) для карточек
 function TowerText.Tooltip(def: any): string
 	local l1 = def.Levels[1]
-	return string.format('<font size="15"><b>%s %s</b></font>\n<font color="#AAB2C8">%s</font>\nDamage %s • Range %s • %s\nDPS %s → %s (max level)',
-		def.Icon, def.Name, def.Role, Format.Number(l1.Damage), Format.Decimal(l1.Range), TowerText.FireRate(l1),
+	return string.format('<font size="15"><b>%s</b></font>\n<font color="#C4D2F0">%s</font>\nDamage %s   Range %s   %s\nDPS %s (max %s)',
+		def.Name, def.Role, Format.Number(l1.Damage), Format.Decimal(l1.Range), TowerText.FireRate(l1),
 		Format.Number(Towers.Dps(l1)), Format.Number(Towers.Dps(def.Levels[#def.Levels])))
 end
 

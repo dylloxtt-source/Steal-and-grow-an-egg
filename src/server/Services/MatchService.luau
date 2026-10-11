@@ -84,7 +84,7 @@ function MatchService:Create(players: { Player }, mapId: string): (any?, string?
 		player:SetAttribute("MapId", mapId)
 		teleport(player, match:SpawnCFrame())
 	end
-	match:Notify("🗺 " .. match.Map.Name .. " • prepare your defense: " .. Game.Match.PrepTime .. "s", "info")
+	match:Notify(match.Map.Name .. " - first wave in " .. Game.Match.PrepTime .. " seconds. Place your towers!", "info")
 	match:Broadcast()
 	return match, nil
 end

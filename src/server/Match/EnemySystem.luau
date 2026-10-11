@@ -49,8 +49,8 @@ function EnemySystem:Spawn(enemyId: string, wave: any, distance: number?): any?
 		return nil
 	end
 	local match = self.Match
-	-- Сложность карты нарастает к 12-й волне: ранние волны не «стена» на трудных картах
-	local ramp = math.clamp(wave.Number / 12, 0.35, 1)
+	-- Сложность карты нарастает к 10-й волне: ранние волны не «стена» на трудных картах
+	local ramp = math.clamp(wave.Number / 10, 0.3, 1)
 	local scale = (1 + (match.Difficulty - 1) * ramp) * match.TeamScale
 	local hpMult = if def.Boss then 1 else wave.HealthMult
 	local health = math.floor(def.Health * hpMult * scale)
@@ -96,6 +96,7 @@ function EnemySystem:Spawn(enemyId: string, wave: any, distance: number?): any?
 	model:SetAttribute("MatchId", match.Id)
 	model:SetAttribute("Boss", def.Boss == true)
 	model:SetAttribute("Elite", def.Elite == true)
+	model:SetAttribute("DisplayName", def.Name)
 	model:SetAttribute("Stealth", enemy.Stealth)
 	model:SetAttribute("Scale", def.Scale)
 	model:SetAttribute("MaxHealth", health)
@@ -109,7 +110,7 @@ function EnemySystem:Spawn(enemyId: string, wave: any, distance: number?): any?
 	self.ByUid[uid] = enemy
 	if def.Boss then
 		match:Fx({ k = "boss", name = def.Name })
-		match:Notify("👑 Boss incoming: " .. def.Name .. "!", "boss")
+		match:Notify("Boss incoming: " .. def.Name .. "!", "boss")
 	end
 	return enemy
 end
@@ -237,9 +238,11 @@ local function abilities(self: any, enemy: any, dt: number)
 					state.Fired[i] = true
 					local wave = match.Waves:CurrentConfig()
 					for k = 1, def.Count do
-						self:Spawn(def.Summon, wave, math.max(0, enemy.Distance - 2 * k))
+						-- Подкрепление выходит из портала: при 3 жизнях базы враги рядом с базой были бы нечестны
+						self:Spawn(def.Summon, wave, 3 * (k - 1))
 					end
 					match:Fx({ k = "summon", at = match:World(enemy.Position) })
+					match:Notify(enemy.Def.Name .. " called reinforcements!", "boss")
 				end
 			end
 		elseif def.Kind == "Enrage" then
@@ -247,7 +250,7 @@ local function abilities(self: any, enemy: any, dt: number)
 				state.Fired[1] = true
 				enemy.EnrageMult = def.Amount
 				match:Fx({ k = "enrage", e = enemy.Uid })
-				match:Notify("🔥 " .. enemy.Def.Name .. " is enraged!", "boss")
+				match:Notify(enemy.Def.Name .. " is enraged!", "boss")
 			end
 		end
 	end

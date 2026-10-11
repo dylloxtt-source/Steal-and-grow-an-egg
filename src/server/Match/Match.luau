@@ -58,8 +58,8 @@ function Match.new(id: number, slot: number, mapId: string, players: { Player },
 		TeamScale = 1 + Game.Match.TeamHpScale * (#players - 1),
 		Players = {} :: { Player },
 		PlayerState = {} :: { [number]: any },
-		BaseHealth = map.BaseHealth,
-		BaseMaxHealth = map.BaseHealth,
+		BaseHealth = Game.Match.Lives,
+		BaseMaxHealth = Game.Match.Lives,
 		Time = 0,
 		TimeScale = 1,
 		Accumulator = 0,
@@ -219,7 +219,7 @@ function Match:DamageBase(amount: number, source: string)
 	self:Fx({ k = "leak", n = amount })
 	self:MarkDirty()
 	if self.BaseHealth <= 0 then
-		self:Notify("💥 The base was destroyed (" .. source .. ")", "error")
+		self:Notify("The base has fallen! (" .. source .. ")", "error")
 		self:Finish(false)
 	end
 end
@@ -237,7 +237,7 @@ function Match:RecountSpeed()
 	if scale ~= self.TimeScale then
 		self.TimeScale = scale
 		self.Enemies:Resync()
-		self:Notify(if scale == 2 then "⏩ Speed x2 enabled" else "▶ Normal speed", "info")
+		self:Notify(if scale == 2 then "Speed x2 on" else "Normal speed", "info")
 	end
 end
 

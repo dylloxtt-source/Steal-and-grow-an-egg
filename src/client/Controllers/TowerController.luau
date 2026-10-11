@@ -67,7 +67,7 @@ local function build(layer: Instance)
 		Kit.Round(pip)
 		refs.Pips[i] = pip
 	end
-	Kit.Button({ Name = "Close", Text = "✕", Variant = "Danger", Size = UDim2.fromOffset(38, 38), Position = UDim2.new(1, -10, 0, 10), AnchorPoint = Vector2.new(1, 0),
+	Kit.Button({ Name = "Close", Text = "X", Variant = "Danger", Size = UDim2.fromOffset(38, 38), Position = UDim2.new(1, -10, 0, 10), AnchorPoint = Vector2.new(1, 0),
 		TextSize = 16, Radius = 10, Parent = panel, OnClick = function()
 			TowerController.Select(nil)
 		end })
@@ -75,16 +75,16 @@ local function build(layer: Instance)
 	local stats = Kit.Create("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 124), Position = UDim2.fromOffset(12, 94), Parent = panel })
 	Kit.List(stats, 4)
 	refs.Stats = {}
-	for i, entry in { { "⚔", "Damage" }, { "◎", "Range" }, { "⚡", "Fire rate" }, { "📈", "DPS" } } do
+	for i, entry in { "Damage", "Range", "Fire rate", "DPS" } do
 		local row = Kit.Inset({ Size = UDim2.new(1, 0, 0, 28), LayoutOrder = i, Radius = 8, Parent = stats })
-		Kit.Text({ Text = entry[1] .. "  " .. entry[2], Font = "Display", TextSize = 14, TextColor3 = C.SubText, Size = UDim2.new(0.45, 0, 1, 0),
+		Kit.Text({ Text = entry, Font = "Display", TextSize = 14, TextColor3 = C.SubText, Size = UDim2.new(0.45, 0, 1, 0),
 			Position = UDim2.fromOffset(10, 0), Parent = row })
 		refs.Stats[i] = Kit.Text({ Text = "", Font = "Display", TextSize = 15, RichText = true, Size = UDim2.new(0.55, -10, 1, 0), Position = UDim2.fromScale(0.45, 0),
 			TextXAlignment = Enum.TextXAlignment.Right, Parent = row })
 	end
 	refs.Special = Kit.Text({ Text = "", Size = UDim2.new(1, -24, 0, 32), Position = UDim2.fromOffset(12, 222), TextSize = 12, Weight = "Bold", TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.Gold, Parent = panel })
-	Kit.Text({ Text = "TARGET", Font = "Display", TextSize = 13, TextColor3 = C.SubText, Size = UDim2.fromOffset(100, 16), Position = UDim2.fromOffset(14, 258), Parent = panel })
+	Kit.Text({ Text = "Target", Font = "Display", TextSize = 13, TextColor3 = C.SubText, Size = UDim2.fromOffset(100, 16), Position = UDim2.fromOffset(14, 258), Parent = panel })
 	refs.Owner = Kit.Text({ Text = "", Font = "Display", TextSize = 12, TextColor3 = C.Muted, Size = UDim2.fromOffset(180, 16), Position = UDim2.new(1, -14, 0, 258),
 		AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, Parent = panel })
 	local options = {}
@@ -99,13 +99,13 @@ local function build(layer: Instance)
 				State.Fire("SetPriority", { uid = selected:GetAttribute("Uid"), priority = name })
 			end
 		end })
-	refs.Upgrade = Kit.Button({ Name = "Upgrade", Text = "UPGRADE", Variant = "Success", Size = UDim2.new(1, -24, 0, 58), Position = UDim2.fromOffset(12, 328),
+	refs.Upgrade = Kit.Button({ Name = "Upgrade", Text = "Upgrade", Variant = "Success", Size = UDim2.new(1, -24, 0, 58), Position = UDim2.fromOffset(12, 328),
 		TextSize = 20, Parent = panel, OnClick = function()
 			TowerController.Upgrade()
 		end })
 	refs.Next = Kit.Text({ Text = "", TextSize = 11, Weight = "Bold", TextColor3 = C.SubText, Size = UDim2.new(1, -24, 0, 14), Position = UDim2.fromOffset(12, 390),
 		TextXAlignment = Enum.TextXAlignment.Center, Parent = panel })
-	refs.Sell = Kit.Button({ Name = "Sell", Text = "SELL", Variant = "Danger", Size = UDim2.new(1, -24, 0, 48), Position = UDim2.fromOffset(12, 410),
+	refs.Sell = Kit.Button({ Name = "Sell", Text = "Sell", Variant = "Danger", Size = UDim2.new(1, -24, 0, 48), Position = UDim2.fromOffset(12, 410),
 		TextSize = 17, Parent = panel, OnClick = function()
 			TowerController.Sell()
 		end })
@@ -152,7 +152,7 @@ local function refresh()
 	end
 	refs.ViewStroke.Color = rarity
 	refs.Name.Text = def.Name
-	refs.Level.Text = string.format("LV %d / %d  •  %s", level, Towers.MaxLevel, stats.Text)
+	refs.Level.Text = string.format("Level %d - %s", level, stats.Text)
 	for i, pip in refs.Pips do
 		pip.BackgroundColor3 = if i <= level then C.Gold else C.PanelLighter
 	end
@@ -162,27 +162,27 @@ local function refresh()
 	refs.Stats[2].Text = delta(Format.Decimal(stats.Range), if nextStats then Format.Decimal(nextStats.Range) else nil)
 	refs.Stats[3].Text = delta(TowerText.FireRate(stats), if nextStats then TowerText.FireRate(nextStats) else nil)
 	refs.Stats[4].Text = delta(Format.Number(Towers.Dps(stats)), if nextStats then Format.Number(Towers.Dps(nextStats)) else nil)
-	refs.Special.Text = "✦ " .. TowerText.SpecialLine(stats)
+	refs.Special.Text = TowerText.SpecialLine(stats)
 	local priority = model:GetAttribute("Priority") or "First"
 	refs.Priority:Set(priority)
-	refs.Owner.Text = if mine then "YOUR TOWER" else "👥 " .. string.upper(tostring(model:GetAttribute("OwnerName") or "TEAMMATE"))
+	refs.Owner.Text = if mine then "Your tower" else tostring(model:GetAttribute("OwnerName") or "Teammate") .. "'s tower"
 	refs.Priority.Frame.Visible = mine
 	refs.Upgrade.Visible = mine
 	refs.Sell.Visible = mine
 	refs.Next.Visible = mine
 	if nextStats then
 		local affordable = State.Cash() >= nextStats.Cost
-		Kit.SetText(refs.Upgrade, string.format("⬆ UPGRADE  %s", Format.Cash(nextStats.Cost)))
+		Kit.SetText(refs.Upgrade, string.format("Upgrade %s", Format.Cash(nextStats.Cost)))
 		Kit.SetVariant(refs.Upgrade, if affordable then "Success" else "Disabled")
-		refs.Next.Text = "NEXT: " .. string.upper(nextStats.Text) .. (if Kit.IsTouch() then "" else "   [U]")
+		refs.Next.Text = "Next: " .. nextStats.Text .. (if Kit.IsTouch() then "" else "  (U)")
 	else
-		Kit.SetText(refs.Upgrade, "★ MAX LEVEL")
+		Kit.SetText(refs.Upgrade, "Max Level")
 		Kit.SetVariant(refs.Upgrade, "Gold")
 		refs.Upgrade:SetAttribute("Variant", "Disabled")
-		refs.Next.Text = "FULLY UPGRADED"
+		refs.Next.Text = "Fully upgraded"
 	end
 	local refund = math.floor((model:GetAttribute("Spent") or 0) * Economy.SellRefund)
-	Kit.SetText(refs.Sell, if os.clock() - sellArmedAt < 2.5 then "TAP AGAIN TO SELL" else string.format("SELL  +%s", Format.Cash(refund)))
+	Kit.SetText(refs.Sell, if os.clock() - sellArmedAt < 2.5 then "Click again to sell" else string.format("Sell %s", Format.Cash(refund)))
 	local root = model.PrimaryPart
 	if root then
 		local range = stats.Range
