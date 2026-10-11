@@ -126,8 +126,7 @@ function ResultsController.Show(results: any)
 			row.Cells[4].Text = Format.Cash(entry.earned)
 		end
 	end
-	refs.Saved.Text = if results.saved then "✔ Прогресс сохранён" else "⚠ Тестовый режим: прогресс не сохраняется"
-	refs.Saved.TextColor3 = if results.saved then C.Green else C.Orange
+	ResultsController.SetSaved(results.saved)
 	Kit.SetVariant(refs.Return, "Primary")
 	refs.Dim.Visible = true
 	token += 1
@@ -142,6 +141,20 @@ function ResultsController.Show(results: any)
 	end)
 end
 
+-- saved: true — записано, false — не сохраняется (тестовый режим / ошибка), nil — идёт сохранение
+function ResultsController.SetSaved(saved: boolean?)
+	if saved == nil then
+		refs.Saved.Text = "Сохранение прогресса…"
+		refs.Saved.TextColor3 = C.SubText
+	elseif saved then
+		refs.Saved.Text = "✔ Прогресс сохранён"
+		refs.Saved.TextColor3 = C.Green
+	else
+		refs.Saved.Text = if State.MemoryMode then "⚠ Тестовый режим: прогресс не сохраняется" else "⚠ Не удалось сохранить — повторим автоматически"
+		refs.Saved.TextColor3 = C.Orange
+	end
+end
+
 function ResultsController.Hide()
 	token += 1
 	refs.Dim.Visible = false
@@ -149,8 +162,15 @@ end
 
 function ResultsController.Init(screen: Instance)
 	local layer = Root.Layer("Results")
+	layer.ZIndex = 60 -- поверх HUD и уведомлений
 	build(layer)
-	State.Ended.Event:Connect(ResultsController.Show)
+	State.Ended.Event:Connect(function(results)
+		if results.savedUpdate then
+			ResultsController.SetSaved(results.saved)
+		else
+			ResultsController.Show(results)
+		end
+	end)
 	Players.LocalPlayer:GetAttributeChangedSignal("MatchId"):Connect(function()
 		if not State.InMatch() then
 			ResultsController.Hide()

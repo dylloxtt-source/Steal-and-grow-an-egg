@@ -44,7 +44,13 @@ function State.Init()
 		end
 	end)
 	Net.Event("MatchEnded").OnClientEvent:Connect(function(results)
-		State.Results = results
+		if type(results) == "table" and results.savedUpdate then
+			if State.Results then
+				State.Results.saved = results.saved
+			end
+		else
+			State.Results = results
+		end
 		State.Ended:Fire(results)
 	end)
 	Net.Event("Profile").OnClientEvent:Connect(function(view)

@@ -150,7 +150,7 @@ local function buildBottom()
 		Preview.Tower(def.Id, 1, card, UDim2.fromOffset(88, 58), UDim2.fromOffset(0, 2), "upper")
 		Kit.Text({ Text = tostring(i), Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(5, 4), TextSize = 12, Weight = "Heavy",
 			TextColor3 = C.SubText, Parent = card })
-		Kit.Text({ Text = def.Name, Size = UDim2.new(1, -6, 0, 14), Position = UDim2.fromOffset(3, 60), TextSize = 11, Weight = "Bold",
+		Kit.Text({ Text = def.Name, Size = UDim2.new(1, -6, 0, 14), Position = UDim2.fromOffset(3, 60), TextSize = if #def.Name > 13 then 9 elseif #def.Name > 11 then 10 else 11, Weight = "Bold",
 			TextXAlignment = Enum.TextXAlignment.Center, Parent = card })
 		local cost = Kit.Text({ Text = Format.Cash(def.Levels[1].Cost), Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 75),
 			TextSize = 14, Weight = "Heavy", TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.Gold, Parent = card })
@@ -162,7 +162,7 @@ local function buildBottom()
 end
 
 local function buildBanner()
-	refs.Banner = Root.Fit(Kit.Text({ Text = "", Size = UDim2.fromOffset(900, 64), Position = UDim2.fromScale(0.5, 0.32),
+	refs.Banner = Root.Fit(Kit.Text({ Text = "", Size = UDim2.fromOffset(900, 64), Position = UDim2.fromScale(0.5, 0.45),
 		AnchorPoint = Vector2.new(0.5, 0.5), TextSize = 46, Weight = "Heavy", Shadow = true, TextXAlignment = Enum.TextXAlignment.Center,
 		Visible = false, Parent = layer }))
 end
@@ -412,6 +412,8 @@ function HUDController.Init(screen: Instance)
 		if accumulator >= 0.2 and layer.Visible then
 			accumulator = 0
 			refreshTimer()
+			-- На маленьком экране окно башни занимает правую сторону: прячем список команды
+			refs.Team.Visible = not (TowerController.Selected() ~= nil and Root.Scale < 0.8)
 		end
 	end)
 	-- Персонаж возродился — вернуть камеру на него, если обзор выключен

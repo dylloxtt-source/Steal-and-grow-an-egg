@@ -88,7 +88,14 @@ end
 function MatchService:OnCharacterAdded(player: Player, character: Model)
 	local match = MatchService:MatchOf(player)
 	if match and not match.Closed then
-		character:PivotTo(match:SpawnCFrame())
+		-- Ждём, пока движок поставит персонажа на SpawnLocation, иначе перенос перезапишется
+		task.spawn(function()
+			character:WaitForChild("HumanoidRootPart", 5)
+			task.wait()
+			if character.Parent and MatchService:MatchOf(player) == match and not match.Closed then
+				character:PivotTo(match:SpawnCFrame())
+			end
+		end)
 	end
 end
 
@@ -122,7 +129,6 @@ function MatchService:OnFinished(match: any, victory: boolean)
 			end
 			profile.bestWave[match.MapId] = math.max(profile.bestWave[match.MapId] or 0, match.Waves.Wave)
 			services.DataService:SendProfile(player)
-			services.DataService:SaveNow(player)
 		end
 		local team = {}
 		for _, other in match.PlayerState do
@@ -142,8 +148,17 @@ function MatchService:OnFinished(match: any, victory: boolean)
 			rewards = rewards,
 			levelsGained = levelsGained,
 			returnIn = Game.Match.ResultsTime,
-			saved = not services.DataService.MemoryMode,
+			-- nil = сохранение ещё идёт; итог придёт отдельным сообщением
+			saved = if services.DataService.MemoryMode or not session then false else nil,
 		})
+		if session and not services.DataService.MemoryMode then
+			task.spawn(function()
+				local saved = services.DataService:SaveAndWait(player)
+				if player.Parent then
+					endedEvent:FireClient(player, { savedUpdate = true, saved = saved })
+				end
+			end)
+		end
 	end
 end
 

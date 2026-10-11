@@ -137,18 +137,25 @@ local function saveSession(session: any, release: boolean): boolean
 	local profile = session.Profile
 	local success = false
 	for attempt = 1, 3 do
+		local written, locked = false, false
 		local ok, err = pcall(function()
 			store:UpdateAsync(keyFor(session.UserId), function(old)
+				written, locked = false, false
 				if type(old) == "table" and type(old.lock) == "table" and old.lock.jobId ~= game.JobId
 					and os.time() - (tonumber(old.lock.time) or 0) < LOCK_TIMEOUT then
-					return nil -- профиль захвачен другим сервером
+					locked = true
+					return nil -- профиль захвачен другим сервером: не перезаписываем
 				end
 				profile.lock = if release then nil else { jobId = game.JobId, time = os.time() }
+				written = true
 				return profile
 			end)
 		end)
 		if ok then
-			success = true
+			success = written
+			if locked then
+				warn(string.format("[DataService] Профиль %d занят другим сервером — сохранение пропущено", session.UserId))
+			end
 			break
 		end
 		warn(string.format("[DataService] Ошибка сохранения %d (попытка %d): %s", session.UserId, attempt, tostring(err)))
@@ -163,6 +170,15 @@ function DataService:SaveNow(player: Player)
 	if session then
 		task.spawn(saveSession, session, false)
 	end
+end
+
+-- Сохранить и дождаться результата (true — запись в DataStore прошла)
+function DataService:SaveAndWait(player: Player): boolean
+	local session = DataService:GetSession(player)
+	if not session then
+		return false
+	end
+	return saveSession(session, false)
 end
 
 local function onPlayerAdded(player: Player)

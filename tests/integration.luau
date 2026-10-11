@@ -634,6 +634,7 @@ check("профиль: награды начислены", profile.gems > 0)
 task.wait(0.2)
 local stored = Engine.DataStoreData["p_" .. p1.UserId]
 check("профиль сохранён в DataStore", stored and stored.stats and stored.stats.matches == 1)
+check("итоги: «Прогресс сохранён» только после реальной записи", findText(gui.Results, "Прогресс сохранён") ~= nil)
 r = act(p1, "PlaceTower", { tower = "archer", x = best.X, z = best.Z })
 check("после окончания башни не ставятся", r.ok == false)
 local soloId = solo.Id
@@ -655,6 +656,7 @@ Engine.MoveTo(p3, Vector3.new(0, 3, 40))
 local victoryMatch = MatchService:Create({ p3 }, "snow")
 check("новый матч (снег)", victoryMatch ~= nil and victoryMatch.MapId == "snow")
 victoryMatch.Waves:StartWave(victoryMatch.Waves.Max)
+Engine.DataStoreFails = true -- сохранение после победы должно честно провалиться
 guard = 0
 while not victoryMatch.Ended and guard < 2000 do
 	for _, e in table.clone(victoryMatch.Enemies.Alive) do
@@ -666,6 +668,30 @@ end
 check("победа после последней волны", victoryMatch.Result == "Victory", victoryMatch.Result)
 local profile3 = DataService:GetSession(p3).Profile
 check("профиль: победа записана", profile3.stats.wins == 1 and profile3.bestWave.snow == victoryMatch.Waves.Max)
+local function savedUpdateFor(player)
+	for _, entry in Engine.RemoteLog do
+		if entry.event == "MatchEnded" and entry.player == player and entry.args[1].savedUpdate then
+			return entry.args[1]
+		end
+	end
+	return nil
+end
+local firstEnded = nil
+for _, entry in Engine.RemoteLog do
+	if entry.event == "MatchEnded" and entry.player == p3 and not entry.args[1].savedUpdate then
+		firstEnded = entry.args[1]
+	end
+end
+check("итоги сначала «сохранение идёт», а не ложный успех", firstEnded and firstEnded.saved == nil)
+for _ = 1, 40 do
+	if savedUpdateFor(p3) then
+		break
+	end
+	task.wait(0.25)
+end
+local update = savedUpdateFor(p3)
+check("сбой DataStore → итоги сообщают «не сохранено»", update and update.saved == false)
+Engine.DataStoreFails = false
 victoryMatch.ResultsAt = os.clock() - Game.Match.ResultsTime - 1
 tick(0.3)
 check("автовозврат в лобби по таймеру итогов", p3:GetAttribute("MatchId") == nil and MatchService.Matches[victoryMatch.Id] == nil)
@@ -687,6 +713,14 @@ end
 check("при ошибке загрузки игрок не получает пустой профиль (кик с объяснением)",
 	Engine.Kicked[p6.UserId] ~= nil or DataService:GetSession(p6) == nil, Engine.Kicked[p6.UserId])
 Engine.DataStoreFails = false
+
+local key = "p_" .. p1.UserId
+local before = Engine.DataStoreData[key].gems
+Engine.DataStoreData[key].lock = { jobId = "other-server", time = Engine.Now() }
+DataService:GetSession(p1).Profile.gems += 1000
+check("профиль, занятый другим сервером, не перезаписывается", DataService:SaveAndWait(p1) == false and Engine.DataStoreData[key].gems == before)
+Engine.DataStoreData[key].lock = nil
+check("после снятия замка сохранение проходит", DataService:SaveAndWait(p1) == true and Engine.DataStoreData[key].gems == before + 1000)
 
 ------------------------------------------------------------------------
 

@@ -402,7 +402,9 @@ local function ground(ctx: Ctx)
 			local w = math.min(tile, bx + 6 - x)
 			local d = math.min(tile, bz + 6 - z)
 			local color = if (ix + iz) % 2 == 0 then map.Palette.Ground else map.Palette.Ground2
-			local part = block(ctx, Vector3.new(w, 2, d), CFrame.new(x + w / 2, -1, z + d / 2), color, { Material = material, CastShadow = false })
+			-- Земля твёрдая: по ней ходит персонаж игрока (декор и дорога — без коллизии)
+			local part = block(ctx, Vector3.new(w, 2, d), CFrame.new(x + w / 2, -1, z + d / 2), color,
+				{ Material = material, CastShadow = false, CanCollide = true })
 			part.Name = "Ground"
 			z += d
 			iz += 1
@@ -419,7 +421,19 @@ local function ground(ctx: Ctx)
 		{ Vector3.new(4, 3, bz * 2 + 12), CFrame.new(-bx - 8, 1.5, 0) },
 	}
 	for _, entry in sizes do
-		block(ctx, entry[1], entry[2], edge, { Material = if map.Theme == "neon" then Enum.Material.Concrete else Enum.Material.Slate })
+		block(ctx, entry[1], entry[2], edge, { Material = if map.Theme == "neon" then Enum.Material.Concrete else Enum.Material.Slate, CanCollide = true })
+	end
+	-- Невидимые стены по краю поля: персонаж не упадёт с карты в пустоту
+	local walls = {
+		{ Vector3.new(bx * 2 + 20, 40, 2), CFrame.new(0, 20, bz + 9) },
+		{ Vector3.new(bx * 2 + 20, 40, 2), CFrame.new(0, 20, -bz - 9) },
+		{ Vector3.new(2, 40, bz * 2 + 20), CFrame.new(bx + 9, 20, 0) },
+		{ Vector3.new(2, 40, bz * 2 + 20), CFrame.new(-bx - 9, 20, 0) },
+	}
+	for _, entry in walls do
+		local wall = block(ctx, entry[1], entry[2], edge, { Transparency = 1, CanCollide = true, CastShadow = false })
+		wall.Name = "Boundary"
+		wall.CanQuery = false
 	end
 end
 

@@ -23,8 +23,17 @@ function Format.Number(n: number): string
 	return (if negative then "-" else "") .. text
 end
 
+-- Деньги матча показываются точно (до 100 000), чтобы было видно, хватает ли на покупку
 function Format.Cash(n: number): string
-	return "$" .. Format.Number(n)
+	if math.abs(n) >= 100000 then
+		return "$" .. Format.Number(n)
+	end
+	local text = tostring(math.floor(math.abs(n)))
+	local grouped = string.reverse((string.gsub(string.reverse(text), "(%d%d%d)", "%1,")))
+	if string.sub(grouped, 1, 1) == "," then
+		grouped = string.sub(grouped, 2)
+	end
+	return (if n < 0 then "-$" else "$") .. grouped
 end
 
 function Format.Time(seconds: number): string

@@ -73,11 +73,11 @@ local function special(level: any): string
 	if level.Detect then
 		table.insert(parts, "👁 видит скрытных")
 	end
-	return if #parts > 0 then table.concat(parts, " • ") else "—"
+	return if #parts > 0 then "✦ " .. table.concat(parts, " • ") else "Без особых эффектов"
 end
 
 local function build(layer: Instance)
-	local panel = Root.Fit(Kit.Panel({ Name = "TowerInfo", Size = UDim2.fromOffset(310, 430), Position = UDim2.new(1, -16, 0.5, 30),
+	local panel = Root.Fit(Kit.Panel({ Name = "TowerInfo", Size = UDim2.fromOffset(310, 430), Position = UDim2.new(1, -16, 0.5, -20),
 		AnchorPoint = Vector2.new(1, 0.5), Visible = false, Parent = layer }))
 	Kit.Padding(panel, 14)
 	refs.Panel = panel
@@ -97,9 +97,9 @@ local function build(layer: Instance)
 		refs.Stats[i] = Kit.Text({ Text = "", Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.fromScale(0.5, 0), TextXAlignment = Enum.TextXAlignment.Right,
 			TextSize = 14, Weight = "Bold", Parent = row })
 	end
-	refs.Special = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 172), TextSize = 13, TextWrapped = true,
+	refs.Special = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 180), TextSize = 13, TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.Gold, Parent = panel })
-	refs.Next = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 208), TextSize = 13, TextWrapped = true,
+	refs.Next = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 36), Position = UDim2.fromOffset(0, 212), TextSize = 13, TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.SubText, Parent = panel })
 	refs.Owner = Kit.Text({ Text = "", Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 252), TextSize = 13, TextColor3 = C.Muted, Parent = panel })
 

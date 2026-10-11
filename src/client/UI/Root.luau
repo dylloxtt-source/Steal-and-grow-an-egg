@@ -8,6 +8,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 
 local Kit = require(script.Parent.Kit)
 
@@ -24,7 +25,12 @@ local function compute(): number
 	if size.X < 1 or size.Y < 1 then
 		size = Vector2.new(1280, 720)
 	end
-	return math.clamp(math.min(size.X / 1280, size.Y / 720), 0.55, 1.35)
+	local scale = math.min(size.X / 1280, size.Y / 720)
+	-- Телефоны: чуть крупнее, чтобы текст читался, а кнопки было удобно нажимать
+	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+		scale *= 1.15
+	end
+	return math.clamp(scale, 0.55, 1.35)
 end
 
 local function update()
@@ -43,7 +49,8 @@ function Root.Init(): ScreenGui
 	local screen = Kit.Create("ScreenGui", {
 		Name = "TD_UI",
 		ResetOnSpawn = false,
-		IgnoreGuiInset = true,
+		-- Не залезаем под системные кнопки Roblox (меню, чат) в верхней полосе
+		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 	})

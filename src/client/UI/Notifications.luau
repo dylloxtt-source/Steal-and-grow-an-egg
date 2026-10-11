@@ -61,7 +61,7 @@ function Notifications.Init(screen: Instance)
 		Name = "Notifications",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(460, 200),
-		Position = UDim2.new(0.5, 0, 0, 96),
+		Position = UDim2.new(0.5, 0, 0.25, 0), -- ниже верхних панелей и полос боссов
 		AnchorPoint = Vector2.new(0.5, 0),
 		ZIndex = 50,
 		Parent = screen,

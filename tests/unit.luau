@@ -234,6 +234,26 @@ for _ in themes do
 end
 check("у карт разные темы", themeCount == 5)
 
+-- Физика карты (эмулятор её не симулирует, проверяем настройки деталей)
+local MapBuilder = realm.require(Engine.ServerNode.Match.MapBuilder)
+for _, map in Maps.List do
+	local container = Instance.new("Folder")
+	local folder = MapBuilder.Build(map.Id, Vector3.new(0, 0, 0), container)
+	local groundSolid, grounds, walls = true, 0, 0
+	for _, d in folder:GetDescendants() do
+		if d:IsA("BasePart") then
+			if d.Name == "Ground" then
+				grounds += 1
+				groundSolid = groundSolid and d.CanCollide and d.Anchored
+			elseif d.Name == "Boundary" then
+				walls += 1
+			end
+		end
+	end
+	check(map.Id .. ": земля твёрдая и закреплена (персонаж не провалится)", grounds > 0 and groundSolid)
+	check(map.Id .. ": невидимые стены по краю поля", walls == 4)
+end
+
 ------------------------------------------------------------------------
 section("Маршрут и размещение")
 ------------------------------------------------------------------------
@@ -367,7 +387,8 @@ local gained = Profile.AddXp(p, Economy.Xp.PerLevel(1) + 5)
 check("опыт повышает уровень", gained == 1 and p.level == 2 and p.xp == 5)
 check("Format.Number", Format.Number(950) == "950" and Format.Number(1500) == "1.5K" and Format.Number(2000000) == "2M")
 check("Format.Time", Format.Time(5) == "0:05" and Format.Time(65) == "1:05")
-check("Format.Cash", Format.Cash(800) == "$800")
+check("Format.Cash", Format.Cash(800) == "$800" and Format.Cash(1250) == "$1,250" and Format.Cash(99999) == "$99,999"
+	and Format.Cash(250000) == "$250K" and Format.Cash(-1500) == "-$1,500", Format.Cash(1250))
 
 ------------------------------------------------------------------------
 section("Модели R6")

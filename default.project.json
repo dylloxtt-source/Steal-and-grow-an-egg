@@ -1,5 +1,5 @@
 {
-  "name": "Steal-and-grow-an-egg",
+  "name": "R6-Tower-Defense",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
